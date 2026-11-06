@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>LiveSub 实时字幕</title>
+<link rel="stylesheet" href="control.css"></head>
+<body>
+  <header>
+    <div class="brand"><img src="icon-32.png" alt=""><b>LiveSub</b><small>实时字幕</small></div>
+    <div class="meter"><i id="level"></i></div>
+  </header>
+  <label class="src"><span>声音来源</span><select id="source"></select></label>
+  <button id="toggle" class="primary">开始字幕</button>
+  <div id="status" class="status">未开始</div>
+  <div class="row">
+    <button id="lock" class="ghost">解锁字幕位置</button>
+    <button id="exportTxt" class="ghost">导出文本</button>
+    <button id="exportSrt" class="ghost">导出 SRT</button>
+  </div>
+  <div class="tabs"><button data-tab="log" class="active">字幕记录</button><button data-tab="settings">设置</button></div>
+  <section id="log" class="log"></section>
+  <section id="settings" class="hide"><div id="restart" class="notice hide">设置已保存，重新开始后生效。</div><form id="form" onsubmit="return false"></form>
+    <button id="resetSpk" class="ghost wide">重置说话人</button></section>
+  <footer>Ctrl+Alt+S 开关 · Ctrl+Alt+L 锁定/解锁位置 · Ctrl+Alt+H 隐藏字幕<br>关闭窗口会缩到托盘，字幕继续运行</footer>
+  <script type="module" src="control.js"></script>
+</body></html>

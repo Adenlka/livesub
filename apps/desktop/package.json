@@ -1,0 +1,16 @@
+{
+  "name": "@livesub/desktop",
+  "productName": "LiveSub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LiveSub 实时字幕（Windows 桌面版）",
+  "main": "dist/main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack:win": "electron-packager . LiveSub --platform=win32 --arch=x64 --out=../../release --overwrite --icon=static/icon.ico --ignore=^/src --ignore=^/static"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "@electron/packager": "20.3.0"
+  }
+}

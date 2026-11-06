@@ -1,0 +1,19 @@
+{
+  "name": "livesub",
+  "private": true,
+  "version": "0.1.0",
+  "description": "实时字幕 + 翻译（Windows 桌面 + Chrome 插件），日语优先",
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test",
+    "desktop": "npm run build && npm --workspace apps/desktop start"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "4.3.2"
+  }
+}

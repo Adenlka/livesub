@@ -1,0 +1,13 @@
+node_modules/
+apps/*/dist/
+apps/android/build/
+apps/android/tools/*
+!apps/android/tools/setup.sh
+!apps/android/tools/zipalign.py
+!apps/android/tools/gen-jni-mirrors.py
+release/
+*.ks
+*.keystore
+*.apk
+*.zip
+.env

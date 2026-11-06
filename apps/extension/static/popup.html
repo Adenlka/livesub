@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>LiveSub</title>
+<link rel="stylesheet" href="popup.css"></head>
+<body>
+  <header>
+    <div class="brand"><span class="logo">字</span><b>LiveSub</b><small>实时字幕</small></div>
+    <div class="meter"><i id="level"></i></div>
+  </header>
+  <button id="toggle" class="primary">为当前标签页开启字幕</button>
+  <div id="status" class="status">未开始</div>
+  <div class="row">
+    <button id="exportTxt" class="ghost">导出文本</button>
+    <button id="exportSrt" class="ghost">导出 SRT</button>
+    <button id="resetSpk" class="ghost" title="重新开始区分说话人">重置说话人</button>
+  </div>
+  <div id="restart" class="notice hide">设置已保存，重新开始后生效。</div>
+  <form id="form" onsubmit="return false"></form>
+  <footer>快捷键 Alt+Shift+S 开关 · 字幕可拖动，双击复位</footer>
+  <script type="module" src="popup.js"></script>
+</body></html>
