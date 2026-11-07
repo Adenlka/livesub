@@ -47,7 +47,7 @@ export function renderSettingsForm(container, settings, onChange) {
     <label data-show="translator=openai"><span>API Key</span><input type="password" name="openaiApiKey" autocomplete="off"></label>
     <label data-show="translator=openai"><span>模型</span><input type="text" name="openaiModel" spellcheck="false"></label>
     <label data-show="translator=openai"><span>AI 校对原文</span><select name="asrFix">${opt('true', '开（按上下文改正同音字、人名）')}${opt('false', '关')}</select></label>
-    <p class="hint" data-show="translator=openai">任何 OpenAI 兼容接口：DeepSeek（默认）、OpenAI、Gemini、本地 Ollama（http://localhost:11434/v1）。大模型出错时会自动退回 Google。</p>
+    <p class="hint" data-show="translator=openai">任何 OpenAI 兼容接口：DeepSeek（默认）、OpenAI、本地 Ollama（http://localhost:11434/v1）；Gemini 填 https://generativelanguage.googleapis.com/v1beta/openai ，模型 gemini-3.5-flash-lite（实测约 1~3 秒，免费档每分钟约 10 次，超了会自动合并句子、排队）。大模型出错时会自动退回 Google。</p>
   </fieldset>
   <fieldset><legend>显示</legend>
     <label><span>显示内容</span><select name="display">${opt('both', '原文 + 译文')}${opt('target', '只显示译文')}${opt('source', '只显示原文')}</select></label>

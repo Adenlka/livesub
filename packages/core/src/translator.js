@@ -6,6 +6,7 @@ import { TARGET_LANGS, langName, SCENES } from './config.js';
 import { looksIncomplete, stripFillers, parsePairs } from './postprocess.js';
 import { checkTarget, normalizePunct, baseLang, guessLang } from './lang-text.js';
 import { systemPrompt } from './translate-prompts.js';
+import { NOT_JA, countIn } from './zh-script.js';
 
 function withTimeout(ms) {
   const c = new AbortController();
@@ -25,6 +26,8 @@ export function sanitizeTranslation(out, src, targetLang) {
   t = t.replace(/^[「『"“'‘《]+(.*?)[」』"”'’》]+$/s, '$1').trim();
   if (!t) return null;
   if (/需要翻译|前文|仅作参考|Translate the following|Here is the translation|以下是|翻訳します/i.test(t)) return null;
+  // models sometimes append their own notes at the end (seen: '...no need to translate fully / truncated') -> strip
+  t = t.replace(/(\.\.\.|…)\s*[（(]?(不必|无需|不用|截断|未完|省略|待续|原文|注[:：]|Note)[^。！？]*$/i, '$1').replace(/\s*[（(](注|译注|Note)[:：][^）)]*[）)]\s*$/i, '').trim();
   const len = [...t].length, srcLen = [...src].length;
   if (len > Math.max(40, srcLen * 4)) return null; // too long -> probably an explanation
   t = checkTarget(t, src, targetLang);
@@ -40,8 +43,11 @@ export function parseFixed(raw) {
 }
 const lev = (a, b) => { a = [...a]; b = [...b]; let p = Array.from({ length: b.length + 1 }, (_, i) => i); for (let i = 1; i <= a.length; i++) { const c = [i]; for (let j = 1; j <= b.length; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; } return p[b.length]; };
 /** Only accept small fixes: at most 30% of the source changed (prevents rewriting, polishing or completing) */
-export function acceptFix(fix, orig) {
+export function acceptFix(fix, orig, lang = null) {
   if (!fix) return null;
+  // never switch the text to another language's script (seen: Gemini changing Japanese '処罰' into simplified '処罚')
+  if (lang === 'ja' && countIn(fix, NOT_JA) > countIn(orig, NOT_JA)) return null;
+  if (lang === 'zh' && /[ぁ-ゖァ-ヺ]/.test(fix) && !/[ぁ-ゖァ-ヺ]/.test(orig)) return null;
   const n = (x) => x.replace(/[\s\p{P}]/gu, '');
   const a = n(fix), b = n(orig);
   if (!a || !b) return null;
@@ -66,7 +72,10 @@ export class Translator {
     this.fetch = fetchImpl;
     this.history = new Map(); // "src>dst" -> [{src,dst}]
     this.cache = new Map();
+    this.nextSlot = 0;          // when rate limited: earliest time the next request may go out
+    this.limitedUntil = 0;
   }
+  get rateLimited() { return Date.now() < this.limitedUntil; }
 
   get enabled() { return !!this.s.translate && this.s.translator !== 'none'; }
   /** AI proofreading: while translating with an LLM, also fix recognition errors from context (homophones, proper nouns) */
@@ -90,7 +99,7 @@ export class Translator {
         try {
           const raw = p === 'openai' ? await this._openai(clean, src, dst, unsure) : await this._google(clean, src, dst);
           const { tr, fix } = p === 'openai' && this.fixOn ? parseFixed(raw) : { tr: raw, fix: null };
-          const fixed = fix ? acceptFix(fix, clean) : null;
+          const fixed = fix ? acceptFix(fix, clean, baseLang(src)) : null;
           const out = sanitizeTranslation(tr, fixed ?? clean, dst);
           if (out == null) { lastErr = '译文校验未通过'; break; }
           const hk = `${baseLang(src)}>${dst}`;
@@ -101,6 +110,11 @@ export class Translator {
         } catch (e) {
           lastErr = e.name === 'AbortError' ? '超时' : e.message;
           if (/API Key|401|403/.test(lastErr)) break;
+          if (e.rate && attempt === 0) {
+            // rate limited: for the next 2 minutes space requests 6.5 s apart (free tier ~10/min) and retry this one after one interval
+            this.limitedUntil = Date.now() + 120000;
+            await new Promise(r => setTimeout(r, 6500));
+          }
         }
       }
     }
@@ -140,7 +154,8 @@ export class Translator {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.openaiApiKey}` },
         body: JSON.stringify({ model: s.openaiModel, temperature: 0.2, max_tokens: 300, messages }),
       });
-      if (!r.ok) throw new Error('大模型接口 HTTP ' + r.status + ' ' + (await r.text()).slice(0, 120));
+      if (this.rateLimited) this.nextSlot = Date.now() + 6500;
+      if (!r.ok) { const e = new Error('大模型接口 HTTP ' + r.status + ' ' + (await r.text()).slice(0, 120)); e.rate = r.status === 429; throw e; }
       const data = await r.json();
       return (data.choices?.[0]?.message?.content ?? '').trim();
     } finally { to.done(); }
@@ -175,6 +190,8 @@ export class TranslationManager {
     this.translator = new Translator(settings, fetch);
     this.onResult = onResult;
     this.pending = null;
+    this.queue = [];
+    this.busy = false;
     this.chain = Promise.resolve();
   }
   get settings() { return this.translator.s; }
@@ -204,15 +221,39 @@ export class TranslationManager {
     if (!g) return;
     this.pending = null;
     clearTimeout(g.timer);
-    const L = baseLang(g.lang);
-    const sep = L === 'ja' || L === 'zh' ? '' : ' ';
-    const text = g.texts.map((t, i) => i < g.texts.length - 1 ? t.replace(/[。．]$/, '') : t).join(sep);
-    this.chain = this.chain.then(async () => {
-      const r = await this.translator.translate(text, { srcLang: g.lang, unsure: g.unsure });
-      this.onResult(g.keys, r.text, { error: r.error, provider: r.provider, merged: g.keys.length > 1, source: text, target: r.target, skipped: r.skipped, fixed: g.keys.length === 1 ? r.fixed : null });
-    });
+    this.queue.push(g);
+    this._pump();
   }
 
-  flush() { this._flush(); return this.chain; }
+  /**
+   * Translate in order. When the API is rate limited (free Gemini is ~10/min): space requests out,
+   * and merge the same speaker's queued sentences in the same language into one request so the queue doesn't fall further behind
+   */
+  _pump() {
+    if (this.busy) return;
+    this.busy = true;
+    this.chain = (async () => {
+      try {
+        while (this.queue.length) {
+          const wait = this.translator.nextSlot - Date.now();
+          if (wait > 0) await new Promise(r => setTimeout(r, wait));
+          const g = this.queue.shift();
+          while (this.queue.length && this.translator.rateLimited) {
+            const n = this.queue[0];
+            if (n.speaker !== g.speaker || n.lang !== g.lang || g.chars + n.chars > 220) break;
+            this.queue.shift();
+            g.keys.push(...n.keys); g.texts.push(...n.texts); g.chars += n.chars; g.unsure ||= n.unsure;
+          }
+          const L = baseLang(g.lang);
+          const sep = L === 'ja' || L === 'zh' ? '' : ' ';
+          const text = g.texts.map((t, i) => i < g.texts.length - 1 ? t.replace(/[。．]$/, '') : t).join(sep);
+          const r = await this.translator.translate(text, { srcLang: g.lang, unsure: g.unsure });
+          this.onResult(g.keys, r.text, { error: r.error, provider: r.provider, merged: g.keys.length > 1, source: text, target: r.target, skipped: r.skipped, fixed: g.keys.length === 1 ? r.fixed : null });
+        }
+      } finally { this.busy = false; }
+    })();
+  }
+
+  async flush() { this._flush(); while (this.busy || this.queue.length) await this.chain; }
   summarize(t) { return this.translator.summarize(t); }
 }

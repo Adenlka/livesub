@@ -11,6 +11,7 @@ const COMMON = [
   '译文要短、口语化、适合当字幕。语气词和口头禅译成对应的简短语气词。',
   '意思准确第一：不确定的地方宁可译得含糊、保守，也不要译出确定但可能错误的意思；原文前标有【识别可能有误】时，只译能确定的部分，读不通的词不要硬猜成别的意思。',
   '口语里常有语速快、连读、省略、倒装、说到一半改口：按说话人真正想表达的意思译，不要逐字直译。',
+  '不要加重或减轻原文的程度和语气（例如“害了他们”不能译成“杀了他们”，“有点”不能译成“非常”）；原文是半句或被截断时译文也停在那里，不要加任何说明。',
 ];
 
 // direction-specific rules
@@ -45,9 +46,10 @@ export function systemPrompt({ src, dst, scene, glossary = [], fix = false, titl
   const head = english
     ? `You translate live ${scene ?? ''} subtitles from ${langLabel(src)} into ${langLabel(dst)}.`
     : `你是${scene ? scene + '场景的' : ''}实时字幕翻译，把${langLabel(src)}翻译成${langLabel(dst)}。`;
-  const lines = [head, '规则：', ...COMMON.map((r, i) => `${i + 1}. ${r}`)];
+  const common = fix ? ['译文不要加解释、注释、注音或“译文：”之类的前缀。', ...COMMON.slice(1)] : COMMON;
+  const lines = [head, '规则：', ...common.map((r, i) => `${i + 1}. ${r}`)];
   const extra = RULES[key] ?? [];
-  extra.forEach((r, i) => lines.push(`${COMMON.length + i + 1}. ${r}`));
+  extra.forEach((r, i) => lines.push(`${common.length + i + 1}. ${r}`));
   if (dst === 'zh-TW') lines.push('使用台湾繁体字和台湾用语（软件=軟體，视频=影片，网络=網路，信息=資訊）。');
   if (glossary.length) lines.push('术语表（必须使用）：\n' + glossary.map(([a, b]) => `${a} → ${b || a}`).join('\n'));
   if (title) lines.push(`背景：正在观看的节目/直播标题是「${title.slice(0, 120)}」，人名、作品名、游戏名按标题里的写法。`);

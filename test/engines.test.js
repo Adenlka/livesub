@@ -65,3 +65,28 @@ test('识别不确定的句子：提醒大模型、缓存分开', async () => {
   assert.match(sent[0].messages.at(-1).content, /^【识别可能有误】/);
   assert.match(sent[0].messages[0].content, /宁可译得含糊/);
 });
+
+import { TranslationManager } from '../packages/core/src/translator.js';
+test('限流（429）时：等待并把排队的句子合并成一次请求', async () => {
+  let n = 0; const bodies = [];
+  const fakeFetch = async (url, init) => {
+    n++; bodies.push(JSON.parse(init.body).messages.at(-1).content);
+    if (n === 1) return { ok: false, status: 429, text: async () => 'quota' };
+    return { ok: true, json: async () => ({ choices: [{ message: { content: '{"src":"x","dst":"译文' + n + '"}' } }] }) };
+  };
+  const got = [];
+  const tm = new TranslationManager({ settings: { translate: true, translator: 'openai', openaiApiKey: 'k', openaiBaseUrl: 'http://x', openaiModel: 'm', targetLang: 'zh-CN', sourceLang: 'en', translateHoldMs: 10 }, fetch: fakeFetch, onResult: (keys, text, meta) => got.push({ keys, text, merged: meta.merged }) });
+  tm.add({ key: 1, text: 'First sentence here.', speaker: 0, lang: 'en' });
+  await new Promise(r => setTimeout(r, 50));
+  tm.add({ key: 2, text: 'Second one.', speaker: 0, lang: 'en' });
+  tm.add({ key: 3, text: 'Third one.', speaker: 0, lang: 'en' });
+  await tm.flush();
+  assert.equal(got.length, 2);
+  assert.deepEqual(got[1].keys, [2, 3]); // the two sentences queued during rate limiting are merged into one request
+  assert.equal(n, 3);
+});
+
+test('AI 校对不许引入别的语言的字形', () => {
+  assert.equal(acceptFix('処罚する罪', '処罰する罪', 'ja'), null);
+  assert.equal(acceptFix('処罰する罪', '処罰すると罪', 'ja'), '処罰する罪');
+});

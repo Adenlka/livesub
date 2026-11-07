@@ -38,7 +38,7 @@ test('translator: 大模型输出可疑 → 自动退回 Google；上下文以�
   const r = await t.translate('こんにちは');
   assert.equal(r.text, '你好');
   assert.equal(r.provider, 'google');
-  assert.match(bodies[0].messages[0].content, /只输出一行译文/);
+  assert.match(bodies[0].messages[0].content, /只输出一行译文|不要加解释/);
 
   const good = new Translator({ ...DEFAULT_SETTINGS, translator: 'openai', openaiApiKey: 'k', glossary: 'ぺこら=佩克拉' }, async (url, init) => {
     bodies.push(JSON.parse(init.body));
