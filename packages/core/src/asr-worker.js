@@ -345,7 +345,8 @@ let refineSeq = 0;
 function finishText(r) {
   let text = cleanText(r.text, { lang: r.lang ?? cfg.sourceLang, engine: engine.name, conf: r.conf, corrections: cfg.corrections });
   // In Japanese/Chinese content, noise, laughter and BGM are often recognized as a lone 'OK', 'Yeah' or 'Thank you'
-  if (text && EN_FILLER.test(text) && jaZhContext()) text = '';
+  // Only drop them when the recognizer itself is unsure; a real 'OK' or 'Yeah' is still shown
+  if (text && EN_FILLER.test(text) && jaZhContext() && (r.conf ?? 1) < 0.7) text = '';
   return text;
 }
 const jaZhContext = () => ['ja', 'zh'].includes(cfg.sourceLang) || (cfg.sourceLang === 'auto' && recentLangs.filter(l => l !== 'en').length > recentLangs.length / 2);
@@ -405,7 +406,6 @@ async function pump() {
           const r = engine.fast ? await engine.fast(a, { partial: true }) : await engine.transcribe(a, { partial: true });
           if (long) r.text = '…' + r.text;
           let text = cleanText(r.text, { lang: r.lang ?? cfg.sourceLang, engine: engine.name, conf: 1, corrections: cfg.corrections });
-          if (EN_FILLER.test(text.replace(/^…/, '')) && jaZhContext()) text = '';
           post({ type: 'partial', id: job.id, text, lang: r.lang ?? null });
           const took = performance.now() - t0;
           // Partials use at most ~40% of the time: if one takes X, skip partials for the next 1.5X
