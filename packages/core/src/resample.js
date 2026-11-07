@@ -17,28 +17,23 @@ export class Resampler {
     this.inRate = inRate;
     this.outRate = outRate;
     this.ratio = inRate / outRate;
-    this.pos = 0; // Position of the next output sample in input coordinates (relative to the start of the current block)
-    this.prev = 0; // Last sample of the previous block, for interpolation
+    this.pos = 0;
+    this.prev = 0;
   }
   process(input) {
-    if (this.inRate === this.outRate) return input;
+    if (this.inRate === this.outRate) return Float32Array.from(input);
     const out = [];
     const r = this.ratio;
-    // Simple box-average anti-aliasing + linear interpolation
     while (this.pos < input.length) {
       const start = Math.floor(this.pos);
       const end = Math.min(input.length, Math.floor(this.pos + r));
       let sum = 0, cnt = 0;
       for (let i = start; i < end; i++) { sum += input[i]; cnt++; }
       if (cnt === 0) {
-        const i = Math.max(0, start);
         const a = start - 1 >= 0 ? input[start - 1] : this.prev;
-        const b = input[i];
-        const t = this.pos - start;
-        out.push(a + (b - a) * t);
-      } else {
-        out.push(sum / cnt);
-      }
+        const b = input[Math.max(0, start)];
+        out.push(a + (b - a) * (this.pos - start));
+      } else out.push(sum / cnt);
       this.pos += r;
     }
     this.pos -= input.length;

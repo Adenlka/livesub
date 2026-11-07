@@ -2,15 +2,15 @@
 // Limitation: overlapping speech within one segment goes to a single speaker
 export const SPEAKER_COLORS = ['#ffe066', '#7ad7ff', '#ff9db5', '#9dffa1', '#ffb86b', '#c9a6ff', '#6bffe1', '#ff7a7a'];
 
-function normalize(v) {
+export function normalize(v) {
   let s = 0; for (let i = 0; i < v.length; i++) s += v[i] * v[i];
   const k = 1 / (Math.sqrt(s) || 1);
   return Float32Array.from(v, x => x * k);
 }
-function cos(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+export function cos(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
 
 export class SpeakerClusterer {
-  constructor({ threshold = 0.45, maxSpeakers = 8, minNewSec = 1.2 } = {}) {
+  constructor({ threshold = 0.5, maxSpeakers = 8, minNewSec = 1.0 } = {}) {
     this.threshold = threshold;   // cosine similarity >= this counts as the same person
     this.maxSpeakers = maxSpeakers;
     this.minNewSec = minNewSec;   // voiceprints of very short clips are unreliable and never create a new speaker
@@ -52,3 +52,5 @@ export class SpeakerClusterer {
 
   reset() { this.speakers = []; this.last = null; }
 }
+
+export const speakerName = (i) => i == null ? '' : '说话人' + String.fromCharCode(65 + (i % 26));

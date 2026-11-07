@@ -1,28 +1,61 @@
 // Subtitle renderer (shared by the desktop overlay and the web page layer)
-import { SPEAKER_COLORS } from './speaker.js';
+import { SPEAKER_COLORS, speakerName } from './speaker.js';
+import { subtitleStyle, baseLang, guessLang } from './lang-text.js';
+
+// Pick fonts by language: the same Han character has different glyphs in Chinese and Japanese (e.g. 直, 骨, 次), so the browser must know the language
 export const CAPTION_CSS = `
-.ls-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;
-  font-family:"Noto Sans JP","Noto Sans SC","Microsoft YaHei UI","Yu Gothic UI","Meiryo",sans-serif;}
-.ls-line{max-width:100%;padding:4px 14px;border-radius:8px;background:rgba(0,0,0,var(--ls-bg,.62));
-  color:#fff;text-align:center;line-height:1.35;text-shadow:0 1px 2px #000;word-break:break-word;
-  transition:opacity .25s;}
-.ls-src{font-size:calc(var(--ls-font,28px) * .78);color:#e8e8e8}
-.ls-dst{font-size:var(--ls-font,28px);font-weight:600}
+.ls-wrap{display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;
+  font-family:"Segoe UI","Noto Sans","Microsoft YaHei UI","PingFang SC",sans-serif;}
+.ls-wrap :lang(ja){font-family:"Yu Gothic UI","Meiryo UI","Noto Sans JP","Noto Sans CJK JP","Hiragino Sans","Yu Gothic",sans-serif}
+.ls-wrap :lang(zh-CN),.ls-wrap :lang(zh){font-family:"Microsoft YaHei UI","PingFang SC","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif}
+.ls-wrap :lang(zh-TW){font-family:"Microsoft JhengHei UI","PingFang TC","Noto Sans TC","Noto Sans CJK TC","Source Han Sans TC",sans-serif}
+.ls-wrap :lang(ko){font-family:"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+.ls-line{position:relative;max-width:100%;box-sizing:border-box;padding:4px 14px;border-radius:8px;background:rgba(0,0,0,var(--ls-bg,.62));
+  color:#fff;text-align:center;line-height:1.38;text-shadow:0 1px 2px #000,0 0 1px #000;transition:opacity .25s;
+  text-wrap:balance;line-break:strict;word-break:normal;overflow-wrap:anywhere;hanging-punctuation:allow-end}
+.ls-line :lang(en){overflow-wrap:break-word;hyphens:auto}
+.ls-src{display:block;font-size:calc(var(--ls-font,28px) * .74);color:#e6e6e6;opacity:.95}
+.ls-dst{display:block;font-size:var(--ls-font,28px);font-weight:600}
 .ls-only{font-size:var(--ls-font,28px);font-weight:600}
-.ls-partial{color:#bfe3ff;font-style:normal;opacity:.9}
+.ls-partial{color:#bfe3ff}
 .ls-pending{opacity:.55}
-.ls-old{opacity:.6}
-.ls-tag{display:inline-block;width:.55em;height:.55em;border-radius:50%;margin-right:.4em;vertical-align:.12em}
-.ls-status{font-size:13px;color:#ffd27a;background:rgba(0,0,0,.6);padding:2px 10px;border-radius:6px}
+.ls-old{opacity:.62}
+.ls-low{opacity:.7;font-style:italic}
+.ls-who{display:inline-block;font-size:.62em;font-weight:600;padding:0 .45em;margin-right:.45em;border-radius:.5em;color:#111;vertical-align:.15em;font-style:normal}
+.ls-status{font-size:13px;color:#ffd27a;background:rgba(0,0,0,.65);padding:3px 10px;border-radius:6px;max-width:100%}
+.ls-err{font-size:.6em;color:#ffb0b0}
 `;
+
+const LANG_ATTR = { ja: 'ja', zh: 'zh-CN', en: 'en', ko: 'ko', yue: 'zh-HK' };
+const isCjk = (l) => ['ja', 'zh', 'ko', 'yue'].includes(baseLang(l));
+
+/**
+ * Show only the tail of long lines (live-caption convention: the newest words matter most). Cut at punctuation/spaces when possible
+ * @param {number} max max characters (CJK counted per character, English per letter)
+ */
+export function tailText(text, max) {
+  const chars = [...text];
+  if (chars.length <= max) return text;
+  const cut = chars.length - max;
+  // look for a break point within 15 characters after the cut
+  for (let i = cut; i < Math.min(chars.length - 4, cut + 15); i++) {
+    if (/[、。，,.!?！？\s]/.test(chars[i])) return '…' + chars.slice(i + 1).join('').trimStart();
+  }
+  return '…' + chars.slice(cut).join('');
+}
 
 export class CaptionView {
   constructor(root, opts = {}) {
     this.root = root;
     this.maxLines = opts.maxLines ?? 2;
     this.display = opts.display ?? 'both';
-    this.items = new Map(); // id -> {text, translation, final}
-    this.order = [];
+    this.showSpeaker = opts.showSpeaker ?? true;
+    this.layout = opts.layout ?? 'src-top';
+    this.subtitlePunct = opts.subtitlePunct ?? true;
+    this.maxChars = opts.maxChars ?? 0;
+    this.sourceLang = opts.sourceLang ?? null;
+    this.targetLang = opts.targetLang ?? null;
+    this.items = new Map(); // key -> item
     this.status = '';
     this.hideTimer = null;
     this.wrap = document.createElement('div');
@@ -30,82 +63,107 @@ export class CaptionView {
     root.appendChild(this.wrap);
   }
 
-  setOptions({ display, fontSize, bgOpacity }) {
-    if (display) this.display = display;
-    if (fontSize) this.root.style.setProperty('--ls-font', fontSize + 'px');
-    if (bgOpacity != null) this.root.style.setProperty('--ls-bg', bgOpacity);
+  setOptions(o = {}) {
+    for (const k of ['display', 'maxLines', 'showSpeaker', 'layout', 'subtitlePunct', 'maxChars', 'sourceLang', 'targetLang']) if (o[k] != null) this[k] = o[k];
+    if (o.fontSize) this.root.style.setProperty('--ls-font', o.fontSize + 'px');
+    if (o.bgOpacity != null) this.root.style.setProperty('--ls-bg', o.bgOpacity);
     this.render();
   }
 
   setStatus(text) { this.status = text ?? ''; this.render(); }
 
   update(c) {
-    if (c.removed) {
-      this.items.delete(c.id);
-      this.order = this.order.filter(i => i !== c.id);
-    } else {
-      const it = this.items.get(c.id) ?? {};
-      it.text = c.text;
-      if (c.translation !== undefined) it.translation = c.translation;
-      it.final = c.final;
-      if (c.speaker !== undefined) it.speaker = c.speaker;
-      it.pending = !!c.pendingTranslation && c.translation === undefined;
-      if (!this.items.has(c.id)) this.order.push(c.id);
-      this.items.set(c.id, it);
-      this.order.sort((a, b) => a - b);
-      while (this.order.length > 8) this.items.delete(this.order.shift());
+    if (c.removed) this.items.delete(c.key);
+    else {
+      const it = this.items.get(c.key) ?? {};
+      for (const k of ['text', 'final', 'speaker', 'conf', 'merged', 'lang', 'tlang']) if (c[k] !== undefined) it[k] = c[k];
+      if (c.translation !== undefined) { it.translation = c.translation; it.pending = false; }
+      else if (c.pendingTranslation) it.pending = true;
+      if (c.translationError !== undefined) it.err = c.translationError;
+      this.items.set(c.key, it);
+      if (this.items.size > 12) {
+        const keys = [...this.items.keys()].sort((a, b) => a - b);
+        for (const k of keys.slice(0, this.items.size - 12)) this.items.delete(k);
+      }
     }
     this.render();
-    // Fade out old captions when nothing new arrives for a while
     clearTimeout(this.hideTimer);
-    this.hideTimer = setTimeout(() => { this.items.clear(); this.order = []; this.render(); }, 12000);
+    this.hideTimer = setTimeout(() => { this.items.clear(); this.render(); }, 15000);
   }
 
-  clear() { this.items.clear(); this.order = []; this.render(); }
+  clear() { this.items.clear(); this.render(); }
+
+  visible() {
+    const keys = [...this.items.keys()].sort((a, b) => a - b);
+    return keys.map(k => [k, this.items.get(k)])
+      .filter(([, it]) => it.text && !(this.display === 'target' && (it.merged || !it.final)))
+      .slice(-this.maxLines);
+  }
+
+  /** Build a text span tagged with its language */
+  _span(cls, text, lang, partial) {
+    const L = lang ?? guessLang(text) ?? this.sourceLang;
+    const max = this.maxChars || (isCjk(L) ? 44 : 90);
+    let t = this.subtitlePunct ? subtitleStyle(text, L) : text;
+    t = tailText(t, partial ? Math.round(max * 0.8) : max);
+    const s = el('span', cls);
+    const attr = LANG_ATTR[baseLang(L)] ?? (L === 'zh-TW' ? 'zh-TW' : L);
+    if (L === 'zh-TW' || L === 'zh-CN') s.lang = L; else if (attr) s.lang = attr;
+    s.append(t);
+    return s;
+  }
 
   render() {
-    const ids = this.order.slice(-this.maxLines);
     const frag = document.createDocumentFragment();
-    if (this.status) {
-      const s = document.createElement('div');
-      s.className = 'ls-status'; s.textContent = this.status;
-      frag.appendChild(s);
-    }
-    ids.forEach((id, idx) => {
-      const it = this.items.get(id);
-      const old = idx < ids.length - 1 ? ' ls-old' : '';
-      const partial = it.final ? '' : ' ls-partial';
-      if (this.display === 'source' || !it.final || (this.display === 'both' && !it.translation && !it.pending)) {
-        if (this.display === 'target' && !it.final) return; // In translation-only mode, don't show the unfinished source text
-        frag.appendChild(colorize(line('ls-line ls-only' + partial + old, it.text), it));
-        return;
-      }
-      if (this.display === 'both') {
-        const box = document.createElement('div');
-        box.className = 'ls-line' + old;
-        box.appendChild(span('ls-src', it.text));
-        box.appendChild(document.createElement('br'));
-        box.appendChild(span('ls-dst' + (it.pending ? ' ls-pending' : ''), it.translation || '…'));
-        frag.appendChild(colorize(box, it));
+    if (this.status) frag.appendChild(el('div', 'ls-status', this.status));
+    const vis = this.visible();
+    vis.forEach(([, it], idx) => {
+      const cls = 'ls-line' + (idx < vis.length - 1 ? ' ls-old' : '') + (it.final && it.conf != null && it.conf < 0.6 ? ' ls-low' : '');
+      const box = el('div', cls);
+      const color = it.final && it.speaker != null ? SPEAKER_COLORS[it.speaker % SPEAKER_COLORS.length] : null;
+      const tag = () => {
+        if (!color || !this.showSpeaker) return null;
+        const w = el('span', 'ls-who', speakerName(it.speaker).replace('说话人', ''));
+        w.style.background = color;
+        return w;
+      };
+      const srcLang = it.lang ?? this.sourceLang;
+      const dstLang = it.tlang ?? this.targetLang;
+      const tr = it.translation;
+      const hasTr = it.final && !it.merged && (tr || it.pending);
+      if (this.display === 'both' && hasTr) {
+        const s = this._span('ls-src', it.text, srcLang);
+        const d = this._span('ls-dst' + (it.pending ? ' ls-pending' : ''), tr || '…', tr ? dstLang : null);
+        const t = tag(); if (t) (this.layout === 'dst-top' ? d : s).prepend(t);
+        if (color) { s.style.color = color; d.style.color = color; }
+        if (this.layout === 'dst-top') box.append(d, s); else box.append(s, d);
+      } else if (this.display === 'both' && it.final && it.merged) {
+        // first half translated together with the next sentence: shown as a small source line, the translation appears on the next one
+        const s = this._span('ls-src', it.text, srcLang);
+        const t = tag(); if (t) s.prepend(t);
+        if (color) s.style.color = color;
+        box.appendChild(s);
       } else {
-        frag.appendChild(colorize(line('ls-line ls-only' + old + (it.pending ? ' ls-pending' : ''), it.translation || it.text), it));
+        const showTr = this.display === 'target' && it.final && (tr || it.pending);
+        const s = showTr
+          ? this._span('ls-only' + (it.pending && !tr ? ' ls-pending' : ''), tr || '…', tr ? dstLang : null)
+          : this._span('ls-only' + (it.final ? '' : ' ls-partial'), it.text, srcLang, !it.final);
+        const t = tag(); if (t) s.prepend(t);
+        if (color) s.style.color = color;
+        box.appendChild(s);
       }
+      if (it.err && !tr && this.display !== 'source') box.appendChild(el('span', 'ls-err', ' ⚠ 翻译失败'));
+      if (color) box.style.boxShadow = `inset 4px 0 0 ${color}`;
+      frag.appendChild(box);
     });
     this.wrap.replaceChildren(frag);
   }
 }
 
-function line(cls, text) { const d = document.createElement('div'); d.className = cls; d.textContent = text; return d; }
-function span(cls, text) { const d = document.createElement('span'); d.className = cls; d.textContent = text; return d; }
-
-function colorize(el, it) {
-  if (it.speaker == null || !it.final) return el;
-  const c = SPEAKER_COLORS[it.speaker % SPEAKER_COLORS.length];
-  el.style.color = c;
-  el.style.borderLeft = `4px solid ${c}`;
-  el.querySelectorAll('.ls-src,.ls-dst').forEach(s => (s.style.color = c));
-  const dot = document.createElement('span');
-  dot.className = 'ls-tag'; dot.style.background = c;
-  el.prepend(dot);
-  return el;
+/** Display options derived from settings (shared by the overlay and the web layer) */
+export function viewOptions(s) {
+  return { display: s.display, fontSize: s.fontSize, bgOpacity: s.bgOpacity, maxLines: s.maxLines, showSpeaker: s.showSpeaker,
+    layout: s.layout, subtitlePunct: s.subtitlePunct, maxChars: s.maxChars, sourceLang: s.sourceLang === 'auto' ? null : s.sourceLang, targetLang: s.targetLang };
 }
+
+function el(tag, cls, text) { const d = document.createElement(tag); d.className = cls; if (text != null) d.textContent = text; return d; }

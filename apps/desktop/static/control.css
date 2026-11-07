@@ -1,14 +1,14 @@
-:root{--bg:#14161b;--panel:#1c1f26;--field:#23272f;--fg:#e9ebef;--muted:#8d94a1;--line:#2e333d;--accent:#ff5d5d;--ok:#5ddc8f;color-scheme:dark}
+:root{--bg:#14161b;--panel:#1c1f26;--field:#23272f;--fg:#e9ebef;--muted:#8d94a1;--line:#2e333d;--accent:#e5484d;--ok:#46c37b;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;padding:14px;background:var(--bg);color:var(--fg);display:flex;flex-direction:column;gap:10px;
+body{margin:0;padding:14px;background:var(--bg);color:var(--fg);display:flex;flex-direction:column;gap:9px;
   font:13px/1.45 "Segoe UI","Microsoft YaHei UI","Yu Gothic UI",system-ui,sans-serif}
 header{display:flex;align-items:center;justify-content:space-between}
 .brand{display:flex;align-items:center;gap:7px}.brand img{width:22px;height:22px}.brand small{color:var(--muted)}
 .meter{width:110px;height:6px;border-radius:3px;background:var(--field);overflow:hidden}
-.meter i{display:block;height:100%;width:0;background:var(--muted);transition:width .2s}.meter i.voiced{background:var(--ok)}
+.meter i{display:block;height:100%;width:0;background:var(--muted);transition:width .15s}.meter i.voiced{background:var(--ok)}
 .src{display:flex;align-items:center;gap:8px}.src span{flex:none}
-select{flex:1;background:var(--field);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px;font:inherit}
+select,input[type=search]{flex:1;min-width:0;background:var(--field);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px;font:inherit}
 button{font:inherit;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:7px 10px;cursor:pointer}
 button:hover{border-color:#4a5160}
 button.primary{background:var(--accent);border:0;color:#fff;font-weight:600;padding:11px;font-size:14px}
@@ -16,17 +16,23 @@ button.primary.on{background:#3a3f4b}
 button:disabled{opacity:.5;cursor:default}
 .wide{width:100%;margin-top:8px}
 .row{display:flex;gap:6px}.row button{flex:1;font-size:12px;padding:6px 4px}
-.status{color:var(--muted);font-size:12px;min-height:18px}.status.error{color:#ff8a8a}.status.ready{color:var(--ok)}
-.progress{height:4px;background:var(--field);border-radius:2px;overflow:hidden;margin-top:4px}.progress i{display:block;height:100%;background:var(--accent)}
+.tools{margin-bottom:6px}
+.status{color:var(--muted);font-size:12px;min-height:18px}.status.error{color:#ff8a8a}.status.ready{color:var(--ok)}.status.warn{color:#f4d27a}
+.progress{height:4px;background:var(--field);border-radius:2px;overflow:hidden;margin-top:5px}.progress i{display:block;height:100%;background:var(--accent);transition:width .3s}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--muted);padding:6px 10px}
 .tabs button.active{color:var(--fg);border-bottom-color:var(--accent)}
-section{flex:1;min-height:0;overflow:auto}
-.log{display:flex;flex-direction:column;gap:8px;padding-right:4px}
-.log .item{border-left:3px solid var(--line);padding:2px 0 2px 8px}
-.log .meta{color:var(--muted);font-size:11px}
-.log .dst{color:#cfd4dc}
-.log .empty{color:var(--muted);text-align:center;margin-top:30px}
+.pane{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}
+#log.pane{overflow:hidden}
+.loglist{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;padding-right:4px}
+.loglist .item{border-left:3px solid var(--line);padding:1px 0 1px 8px}
+.loglist .meta{color:var(--muted);font-size:11px}
+.loglist .dst{color:#cfd4dc}
+.loglist .low{opacity:.65;font-style:italic}
+.empty{color:var(--muted);text-align:center;margin-top:30px}
+.summary{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;white-space:pre-wrap;max-height:40%;overflow:auto;margin-bottom:8px;user-select:text}
 .notice{background:#2f2a1a;color:#f4d27a;border-radius:8px;padding:6px 9px;font-size:12px;margin-bottom:8px}
+.hint{color:var(--muted);font-size:12px;margin:0}
+.check{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px}
 .hide{display:none!important}
 footer{color:var(--muted);font-size:11px;text-align:center}

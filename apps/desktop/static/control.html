@@ -1,23 +1,42 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>LiveSub 实时字幕</title>
-<link rel="stylesheet" href="control.css"></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>LiveSub 实时字幕</title><link rel="stylesheet" href="control.css"></head>
 <body>
   <header>
     <div class="brand"><img src="icon-32.png" alt=""><b>LiveSub</b><small>实时字幕</small></div>
-    <div class="meter"><i id="level"></i></div>
+    <div class="meter" title="音量（绿色 = 检测到人声）"><i id="level"></i></div>
   </header>
   <label class="src"><span>声音来源</span><select id="source"></select></label>
+  <p id="srcHint" class="hint hide">系统声音 + 麦克风：线上会议里自己和对方都会出字幕。建议戴耳机，否则扬声器的声音会被麦克风再录一遍。</p>
   <button id="toggle" class="primary">开始字幕</button>
   <div id="status" class="status">未开始</div>
   <div class="row">
-    <button id="lock" class="ghost">解锁字幕位置</button>
-    <button id="exportTxt" class="ghost">导出文本</button>
-    <button id="exportSrt" class="ghost">导出 SRT</button>
+    <button id="lock">解锁字幕位置</button>
+    <button id="file" title="给本地视频/音频生成字幕（SRT）">视频文件转字幕</button>
+    <button id="folder" title="自动保存的字幕记录">记录文件夹</button>
   </div>
-  <div class="tabs"><button data-tab="log" class="active">字幕记录</button><button data-tab="settings">设置</button></div>
-  <section id="log" class="log"></section>
-  <section id="settings" class="hide"><div id="restart" class="notice hide">设置已保存，重新开始后生效。</div><form id="form" onsubmit="return false"></form>
-    <button id="resetSpk" class="ghost wide">重置说话人</button></section>
-  <footer>Ctrl+Alt+S 开关 · Ctrl+Alt+L 锁定/解锁位置 · Ctrl+Alt+H 隐藏字幕<br>关闭窗口会缩到托盘，字幕继续运行</footer>
+  <input id="fileInput" type="file" accept="video/*,audio/*,.mkv,.flv,.ts,.m4a,.aac,.opus,.wav,.mp3" hidden>
+  <div class="tabs"><button data-tab="log" class="active">字幕记录</button><button data-tab="settings">设置</button><button data-tab="models">模型</button></div>
+  <section id="log" class="pane">
+    <div class="row tools">
+      <input id="q" type="search" placeholder="搜索…">
+      <button id="sum" title="需要在设置里配置大模型 API">AI 总结</button>
+    </div>
+    <div class="row tools"><button data-exp="txt">导出文本</button><button data-exp="srt">导出 SRT</button><button data-exp="vtt">导出 VTT</button><button id="copy">复制</button><button id="clear">清空</button></div>
+    <div id="summary" class="summary hide"></div>
+    <div id="logList" class="loglist"><div class="empty">开始后，字幕会记录在这里</div></div>
+  </section>
+  <section id="settings" class="pane hide">
+    <div id="restart" class="notice hide">这项设置要重新开始字幕后才生效。</div>
+    <form id="form" onsubmit="return false"></form>
+    <label class="check"><input type="checkbox" id="autoSave"> 自动保存字幕记录到「文档/LiveSub」</label>
+    <button id="resetSpk" class="wide">重置说话人</button>
+  </section>
+  <section id="models" class="pane hide">
+    <p id="modelInfo" class="hint">…</p>
+    <p class="hint">识别模型下载一次后保存在本机，不需要联网也能识别（翻译仍需联网）。下载太慢可以在「设置 → 高级 → 模型下载源」切换到镜像。</p>
+    <button id="openModels" class="wide">打开模型文件夹</button>
+    <button id="delModels" class="wide">删除已下载的模型</button>
+  </section>
+  <footer>Ctrl+Alt+S 开关 · Ctrl+Alt+L 锁定/解锁位置 · Ctrl+Alt+H 隐藏字幕 · 关闭窗口会缩到托盘</footer>
   <script type="module" src="control.js"></script>
 </body></html>

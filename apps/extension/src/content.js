@@ -1,31 +1,32 @@
-// Content script: caption layer over the page (Shadow DOM isolates styles; supports dragging and fullscreen)
-import { CaptionView, CAPTION_CSS } from '../../../packages/core/src/caption-view.js';
+// Content script: subtitle layer on the page (Shadow DOM style isolation; draggable; follows fullscreen)
+import { CaptionView, CAPTION_CSS, viewOptions } from '../../../packages/core/src/caption-view.js';
 
 (() => {
   if (window.__livesubInjected) return;
   window.__livesubInjected = true;
 
   const host = document.createElement('livesub-overlay');
-  Object.assign(host.style, {
-    position: 'fixed', left: '50%', bottom: '9%', transform: 'translateX(-50%)',
-    width: 'min(92vw, 1100px)', zIndex: '2147483647', pointerEvents: 'none',
-  });
+  const reset = () => Object.assign(host.style, { left: '50%', top: 'auto', bottom: '9%', transform: 'translateX(-50%)' });
+  Object.assign(host.style, { position: 'fixed', width: 'min(92vw, 1100px)', zIndex: '2147483647', pointerEvents: 'none' });
+  reset();
   const root = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
-  style.textContent = CAPTION_CSS + `
-    .ls-line{pointer-events:auto;cursor:move;user-select:none}
-    .ls-status{pointer-events:auto}`;
+  style.textContent = CAPTION_CSS + `.ls-line{pointer-events:auto;cursor:move;user-select:none}.ls-status{pointer-events:auto}`;
   root.appendChild(style);
   const box = document.createElement('div');
   root.appendChild(box);
   const view = new CaptionView(box, { maxLines: 2 });
 
-  const mount = () => (document.fullscreenElement && document.fullscreenElement.tagName !== 'VIDEO'
-    ? document.fullscreenElement : document.documentElement).appendChild(host);
+  const mount = () => {
+    const fs = document.fullscreenElement;
+    (fs && fs.tagName !== 'VIDEO' ? fs : document.documentElement).appendChild(host);
+  };
   mount();
   document.addEventListener('fullscreenchange', mount);
 
-  // Drag position (double-click to reset)
+  // Drag (position remembered per site), double-click to reset
+  const posKey = 'livesub-pos:' + location.host;
+  try { const p = JSON.parse(localStorage.getItem(posKey) ?? 'null'); if (p) Object.assign(host.style, p); } catch {}
   let drag = null;
   root.addEventListener('pointerdown', (e) => {
     const r = host.getBoundingClientRect();
@@ -34,25 +35,35 @@ import { CaptionView, CAPTION_CSS } from '../../../packages/core/src/caption-vie
   });
   window.addEventListener('pointermove', (e) => {
     if (!drag) return;
-    Object.assign(host.style, { left: e.clientX - drag.dx + 'px', top: e.clientY - drag.dy + 'px', bottom: 'auto', transform: 'none' });
+    const x = Math.max(0, Math.min(innerWidth - 80, e.clientX - drag.dx)), y = Math.max(0, Math.min(innerHeight - 40, e.clientY - drag.dy));
+    Object.assign(host.style, { left: x + 'px', top: y + 'px', bottom: 'auto', transform: 'none' });
   });
-  window.addEventListener('pointerup', () => { drag = null; });
-  root.addEventListener('dblclick', () => Object.assign(host.style, { left: '50%', top: 'auto', bottom: '9%', transform: 'translateX(-50%)' }));
+  window.addEventListener('pointerup', () => {
+    if (!drag) return;
+    drag = null;
+    try { localStorage.setItem(posKey, JSON.stringify({ left: host.style.left, top: host.style.top, bottom: 'auto', transform: 'none' })); } catch {}
+  });
+  root.addEventListener('dblclick', () => { reset(); try { localStorage.removeItem(posKey); } catch {} });
 
   let statusTimer = null;
   chrome.runtime.onMessage.addListener((msg) => {
     switch (msg.type) {
       case 'caption': view.update(msg); break;
-      case 'status':
+      case 'status': {
         clearTimeout(statusTimer);
-        view.setStatus(msg.state === 'ready' ? '✔ ' + msg.message : msg.message);
+        const pct = msg.state === 'loading' && msg.progress != null && msg.progress < 1 ? '' : '';
+        view.setStatus(msg.state === 'ready' ? '✔ ' + msg.message : msg.message + pct);
         if (msg.state === 'ready' || msg.state === 'warn') statusTimer = setTimeout(() => view.setStatus(''), 4000);
         break;
-      case 'settings':
-        view.setOptions({ display: msg.settings.display, fontSize: msg.settings.fontSize, bgOpacity: msg.settings.bgOpacity });
+      }
+      case 'settings': {
+        const s = msg.settings;
+        view.setOptions(viewOptions(s));
         break;
-      case 'clear':
-        view.clear(); view.setStatus('');
+      }
+      case 'stopped':
+        view.setStatus('');
+        setTimeout(() => view.clear(), 3000);
         break;
     }
   });

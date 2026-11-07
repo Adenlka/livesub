@@ -1,47 +1,61 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CaptionPipeline } from '../packages/core/src/pipeline.js';
-import { DEFAULT_SETTINGS } from '../packages/core/src/languages.js';
+import { DEFAULT_SETTINGS } from '../packages/core/src/config.js';
 
-// Mock recognition worker: final returns fixed Japanese text, segment 2 gets a different speaker
-class FakeWorker {
-  constructor() { this.n = 0; this.sent = []; }
+// Mock workers: vad cuts a segment after a fixed amount of audio; asr returns fixed text (segment 2 split between two speakers)
+class FakeVad {
+  constructor() { this.n = 0; this.buf = 0; this.t = 0; }
   postMessage(m) {
-    this.sent.push(m);
+    if (m.type === 'audio') {
+      this.buf += m.samples.length;
+      if (this.buf >= 16000 * 2) {
+        const id = ++this.n; const audio = new Float32Array(this.buf); const scores = new Float32Array(this.buf / 512 | 0);
+        const startMs = this.t; this.t += this.buf / 16; this.buf = 0; const endMs = this.t;
+        queueMicrotask(() => this.onmessage({ data: { type: 'final', id, audio, scores, startMs, endMs, cut: id === 1 } }));
+      }
+    }
+    if (m.type === 'flush') queueMicrotask(() => this.onmessage({ data: { type: 'flushed' } }));
+  }
+  terminate() {}
+}
+class FakeAsr {
+  postMessage(m) {
     if (m.type === 'init') setTimeout(() => this.onmessage({ data: { type: 'status', state: 'ready', message: 'ok' } }), 0);
-    if (m.type === 'transcribe') {
-      const i = m.final ? this.n++ : this.n;
-      setTimeout(() => this.onmessage({ data: { type: 'result', id: m.id, final: m.final, text: m.final ? ['こんにちは', '' /* filtered by the worker */, '元気です'][i] ?? '' : '…', speaker: m.final ? i % 2 : null } }), 0);
+    if (m.type === 'transcribe' && m.final) {
+      const parts = m.id === 1 ? [{ sub: 0, text: '気象庁は警戒するとともに。', conf: 0.99, speaker: 0, startMs: m.startMs, endMs: m.endMs }]
+        : m.id === 2 ? [{ sub: 0, text: '雪崩に注意してください。', conf: 0.98, speaker: 0, startMs: m.startMs, endMs: m.startMs + 1000 },
+                        { sub: 1, text: 'はい、わかりました。', conf: 0.97, speaker: 1, startMs: m.startMs + 1000, endMs: m.endMs }]
+        : [{ sub: 0, text: '', conf: 0.3, speaker: null }];
+      setTimeout(() => this.onmessage({ data: { type: 'final', id: m.id, cut: m.cut, parts } }), 5);
     }
   }
   terminate() {}
 }
 
-const R = 48000;
-const tone = (ms) => Float32Array.from({ length: R * ms / 1000 }, (_, i) => 0.2 * Math.sin(i / 20));
-const quiet = (ms) => new Float32Array(R * ms / 1000);
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-test('pipeline: 音频 → 识别 → 翻译 → 字幕事件 → 导出', async () => {
+test('pipeline: 切段 → 识别（含拆人）→ 合并翻译 → 字幕事件 → 导出', async () => {
   const caps = [];
-  const fetch = async (url) => ({ ok: true, json: async () => [[[decodeURIComponent(url.split('q=')[1]) === 'こんにちは' ? '你好' : '我很好']]] });
+  const fetch = async (url) => {
+    const q = decodeURIComponent(url.split('q=')[1]);
+    const map = { '気象庁は警戒するとともに雪崩に注意してください。': '气象厅提醒大家注意雪崩。', 'はい、わかりました。': '好的，明白了。' };
+    return { ok: true, json: async () => [[[map[q] ?? '??']]] };
+  };
   const p = new CaptionPipeline({
-    worker: new FakeWorker(), assetBase: '/', settings: { ...DEFAULT_SETTINGS }, fetch,
-    onCaption: (c) => caps.push(c), onStatus: () => {},
+    createWorker: (n) => n === 'vad' ? new FakeVad() : new FakeAsr(),
+    assetBase: '/', settings: { ...DEFAULT_SETTINGS, translateHoldMs: 300 }, fetch,
+    onCaption: (c) => caps.push(c),
   });
   p.start();
-  await sleep(5);
-  for (const chunk of [quiet(300), tone(1500), quiet(800), tone(1200), quiet(800), tone(1200), quiet(800)]) {
-    for (let i = 0; i < chunk.length; i += 2048) p.pushAudio([chunk.subarray(i, i + 2048), chunk.subarray(i, i + 2048)], R);
-  }
-  await sleep(30);
-  const finals = caps.filter(c => c.final && c.translation);
-  assert.deepEqual(finals.map(c => [c.text, c.translation, c.speaker]), [['こんにちは', '你好', 0], ['元気です', '我很好', 0]]);
-  assert.ok(caps.some(c => c.removed), '幻听句应被撤销');
-  assert.ok(caps.some(c => !c.final), '应有临时字幕');
+  await new Promise(r => setTimeout(r, 5));
+  for (let i = 0; i < 6; i++) p.pushAudio([new Float32Array(48000 / 2 * 2), new Float32Array(48000)], 48000); // 6 s of 48 kHz stereo
+  await p.stop();
+  const tr = caps.filter(c => c.translation);
+  assert.deepEqual(tr.map(c => [c.key, c.translation]), [[20, '气象厅提醒大家注意雪崩。'], [21, '好的，明白了。']]);
+  assert.ok(caps.some(c => c.key === 10 && c.merged), '前半句标记为已合并');
+  assert.ok(caps.some(c => c.key === 30 && c.removed), '空结果撤销');
   const srt = p.exportSRT();
-  assert.match(srt, /^1\n00:00:00,\d{3} --> 00:00:02,\d{3}\n/);
-  assert.match(srt, /\n2\n00:00:04,\d{3} --> 00:00:0[56],/);
-  assert.match(srt, /\[说话人A\] こんにちは\n你好/);
-  assert.match(p.exportText(), /元気です/);
+  assert.match(srt, /^1\n00:00:00,000 --> 00:00:02,000\n\[说话人A\] 気象庁は警戒するとともに。\n\n2\n00:00:02,000 --> 00:00:03,000\n/);
+  assert.match(srt, /\[说话人B\] はい、わかりました。\n好的，明白了。/);
+  assert.match(p.exportText(), /说话人B：はい、わかりました。\n    → 好的，明白了。/);
+  assert.match(p.exportVTT(), /^WEBVTT\n\n00:00:00\.000 -->/);
 });

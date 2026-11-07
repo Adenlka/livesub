@@ -1,19 +1,25 @@
 {
   "name": "livesub",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "实时字幕 + 翻译（Windows 桌面 + Chrome 插件），日语优先",
   "type": "module",
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test",
     "desktop": "npm run build && npm --workspace apps/desktop start"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "electron": "^45.2.3",
+    "esbuild": "^0.28.2",
+    "puppeteer-core": "^25.16.0"
   },
   "dependencies": {
-    "@huggingface/transformers": "4.3.2"
+    "@huggingface/transformers": "4.3.2",
+    "onnxruntime-web": "1.31.0-dev.20260914-8d85527a0"
   }
 }

@@ -1,20 +1,24 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>LiveSub</title>
-<link rel="stylesheet" href="popup.css"></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>LiveSub</title><link rel="stylesheet" href="popup.css"></head>
 <body>
   <header>
-    <div class="brand"><span class="logo">字</span><b>LiveSub</b><small>实时字幕</small></div>
-    <div class="meter"><i id="level"></i></div>
+    <div class="brand"><img src="icons/32.png" alt=""><b>LiveSub</b><small>实时字幕</small></div>
+    <div class="meter" title="音量（绿色 = 检测到人声）"><i id="level"></i></div>
   </header>
   <button id="toggle" class="primary">为当前标签页开启字幕</button>
   <div id="status" class="status">未开始</div>
   <div class="row">
-    <button id="exportTxt" class="ghost">导出文本</button>
-    <button id="exportSrt" class="ghost">导出 SRT</button>
-    <button id="resetSpk" class="ghost" title="重新开始区分说话人">重置说话人</button>
+    <button id="panel">字幕记录 / 导出</button>
+    <button id="resetSpk" title="换节目或换了一批人时，重新开始区分说话人">重置说话人</button>
   </div>
-  <div id="restart" class="notice hide">设置已保存，重新开始后生效。</div>
+  <div id="restart" class="notice hide">这项设置要重新开始字幕后才生效。</div>
+  <div id="firstRun" class="notice hide"></div>
   <form id="form" onsubmit="return false"></form>
-  <footer>快捷键 Alt+Shift+S 开关 · 字幕可拖动，双击复位</footer>
+  <details class="models"><summary>模型与存储</summary>
+    <p id="cacheInfo" class="muted">…</p>
+    <button id="unload" type="button">释放内存（卸载已加载的模型）</button>
+    <button id="clearCache" type="button">删除已下载的模型</button>
+  </details>
+  <footer>Alt+Shift+S 开关 · 字幕可拖动，双击复位</footer>
   <script type="module" src="popup.js"></script>
 </body></html>

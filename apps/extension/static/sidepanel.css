@@ -1,0 +1,19 @@
+:root{--bg:#14161b;--panel:#1c1f26;--field:#23272f;--fg:#e9ebef;--muted:#8d94a1;--line:#2e333d;--accent:#e5484d;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;padding:12px;background:var(--bg);color:var(--fg);display:flex;flex-direction:column;gap:8px;
+  font:13px/1.5 "Segoe UI","Microsoft YaHei UI","Yu Gothic UI",system-ui,sans-serif}
+header{display:flex;justify-content:space-between;align-items:baseline}
+.muted{color:var(--muted);font-size:12px}
+.row{display:flex;gap:6px}.row>*{flex:1}
+button,input{font:inherit;font-size:12px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:6px 6px;cursor:pointer}
+input{cursor:text;background:var(--field)}
+main{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;padding-right:4px}
+.item{border-left:3px solid var(--line);padding:1px 0 1px 8px}
+.meta{color:var(--muted);font-size:11px}
+.dst{color:#cfd4dc}
+.low{opacity:.65;font-style:italic}
+.empty{color:var(--muted);text-align:center;margin-top:30px}
+mark{background:#6b5a14;color:inherit;border-radius:2px}
+.summary{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;white-space:pre-wrap;max-height:40%;overflow:auto}
+.hide{display:none!important}

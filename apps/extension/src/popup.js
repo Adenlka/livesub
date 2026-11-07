@@ -1,4 +1,6 @@
 import { renderSettingsForm, FORM_CSS, RESTART_KEYS } from '../../../packages/core/src/settings-form.js';
+import { requiredModels, MODELS } from '../../../packages/core/src/config.js';
+import { isModelCached, deleteCachedModels } from '../../../packages/core/src/model-store.js';
 import { loadSettings, saveSettings } from './settings.js';
 
 const $ = (id) => document.getElementById(id);
@@ -6,14 +8,8 @@ const style = document.createElement('style'); style.textContent = FORM_CSS; doc
 
 let state = await chrome.runtime.sendMessage({ type: 'getState' });
 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+let settings = await loadSettings();
 
-function renderState() {
-  const onHere = state.running && state.tabId === tab?.id;
-  $('toggle').textContent = state.running ? (onHere ? '停止字幕' : '停止（字幕正在其他标签页运行）') : '为当前标签页开启字幕';
-  $('toggle').classList.toggle('on', state.running);
-  if (!state.running) setStatus('未开始');
-  else if (state.status) setStatus(state.status);
-}
 function setStatus(text, cls = '', progress = null) {
   const el = $('status');
   el.className = 'status ' + cls;
@@ -24,29 +20,50 @@ function setStatus(text, cls = '', progress = null) {
     el.appendChild(bar);
   }
 }
+function renderState() {
+  const onHere = state.running && state.tabId === tab?.id;
+  $('toggle').textContent = state.running ? (onHere ? '停止字幕' : '停止（正在其他标签页运行）') : '为当前标签页开启字幕';
+  $('toggle').classList.toggle('on', state.running);
+  if (!state.running) setStatus(state.statusState === 'error' ? state.status : '未开始', state.statusState === 'error' ? 'error' : '');
+  else if (state.status) setStatus(state.status, state.statusState);
+}
+
+async function refreshCacheInfo() {
+  const need = requiredModels(settings);
+  const all = Object.keys(MODELS);
+  const cached = Object.fromEntries(await Promise.all(all.map(async id => [id, await isModelCached(id)])));
+  let usage = '';
+  try { const e = await navigator.storage.estimate(); usage = `本扩展共占用 ${(e.usage / 1e6).toFixed(0)} MB。`; } catch {}
+  $('cacheInfo').textContent = all.map(id => `${MODELS[id].name}：${cached[id] ? '已下载' : '未下载'}${need.includes(id) ? '（当前设置需要）' : ''}`).join('；') + '。' + usage;
+  const missing = need.filter(id => !cached[id]);
+  const mb = missing.reduce((a, id) => a + MODELS[id].size, 0) / 1e6;
+  $('firstRun').textContent = `首次使用当前设置需要下载约 ${mb.toFixed(0)}MB 模型，之后缓存在本机。下载期间可以继续看视频。`;
+  $('firstRun').classList.toggle('hide', !(missing.length && !state.running));
+}
 
 $('toggle').onclick = async () => {
   $('toggle').disabled = true;
   try {
-    if (state.running) {
-      await chrome.runtime.sendMessage({ type: 'stop' });
-    } else {
+    if (state.running) await chrome.runtime.sendMessage({ type: 'stop' });
+    else {
       const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
       const r = await chrome.runtime.sendMessage({ type: 'start', tabId: tab.id, streamId });
       if (!r?.ok) setStatus(r?.error ?? '启动失败', 'error');
     }
   } catch (e) {
-    setStatus(e.message.includes('Cannot capture') ? '这个页面不能采集音频（浏览器内部页面）' : e.message, 'error');
+    setStatus(/Cannot capture|chrome:\/\/|Extension has not been invoked/.test(e.message) ? '这个页面不能采集声音（浏览器内部页面）。请在普通网页上使用。' : e.message, 'error');
   }
   state = await chrome.runtime.sendMessage({ type: 'getState' });
   if (state.running || !$('status').classList.contains('error')) renderState();
+  $('restart').classList.add('hide');
   $('toggle').disabled = false;
 };
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'status') {
-    state.status = msg.message;
-    setStatus(msg.message, msg.state === 'error' ? 'error' : msg.state === 'ready' ? 'ready' : '', msg.state === 'loading' ? msg.progress : null);
+    state.status = msg.message; state.statusState = msg.state;
+    setStatus(msg.message, msg.state, msg.state === 'loading' ? msg.progress : null);
+    if (msg.state === 'ready') refreshCacheInfo();
   } else if (msg.type === 'level') {
     const i = $('level');
     i.style.width = Math.min(100, Math.sqrt(msg.rms) * 260) + '%';
@@ -54,25 +71,32 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-async function download(kind) {
-  if (!state.running) { setStatus('字幕运行中才能导出（停止后记录会清空）', 'error'); return; }
-  const r = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'export' });
-  const content = kind === 'srt' ? r?.srt : r?.text;
-  if (!content) { setStatus('还没有字幕内容', 'error'); return; }
-  const url = URL.createObjectURL(new Blob(['﻿' + content], { type: 'text/plain;charset=utf-8' }));
-  const a = document.createElement('a');
-  a.href = url; a.download = `livesub-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.${kind}`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-}
-$('exportTxt').onclick = () => download('txt');
-$('exportSrt').onclick = () => download('srt');
+$('panel').onclick = async () => {
+  try { await chrome.sidePanel.open({ windowId: tab.windowId }); window.close(); }
+  catch { chrome.tabs.create({ url: chrome.runtime.getURL('sidepanel.html') }); }
+};
 $('resetSpk').onclick = () => chrome.runtime.sendMessage({ target: 'offscreen', type: 'resetSpeakers' }).catch(() => {});
+$('unload').onclick = async () => {
+  if (state.running) { setStatus('先停止字幕再释放', 'warn'); return; }
+  await chrome.runtime.sendMessage({ type: 'unloadModel' });
+  setStatus('已释放内存', 'ready');
+};
+$('clearCache').onclick = async () => {
+  if (state.running) { setStatus('先停止字幕再删除模型', 'warn'); return; }
+  if (!confirm('删除已下载的识别模型？下次使用会重新下载。')) return;
+  await chrome.runtime.sendMessage({ type: 'unloadModel' });
+  await deleteCachedModels();
+  refreshCacheInfo();
+  setStatus('已删除下载的模型', 'ready');
+};
 
-renderSettingsForm($('form'), await loadSettings(), async (s, key) => {
+renderSettingsForm($('form'), settings, async (s, key) => {
+  settings = s;
   await saveSettings(s);
   chrome.runtime.sendMessage({ type: 'settings', settings: s });
   if (state.running && RESTART_KEYS.has(key)) $('restart').classList.remove('hide');
+  if (['engine', 'sourceLang', 'diarize', 'scene'].includes(key)) refreshCacheInfo();
 });
 
 renderState();
+refreshCacheInfo();
