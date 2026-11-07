@@ -54,3 +54,14 @@ test('AI 校对：解析 JSON、只接受小改动', () => {
   assert.equal(acceptFix('全然違う文章を勝手に書きました', '江戸は私の庭のようなもの'), null);
   assert.equal(acceptFix('', 'abc'), null);
 });
+
+import { Translator } from '../packages/core/src/translator.js';
+test('识别不确定的句子：提醒大模型、缓存分开', async () => {
+  const sent = [];
+  const fakeFetch = async (url, init) => { sent.push(JSON.parse(init.body)); return { ok: true, json: async () => ({ choices: [{ message: { content: '{"src":"今日は寒い","dst":"今天很冷"}' } }] }) }; };
+  const t = new Translator({ translate: true, translator: 'openai', openaiApiKey: 'k', openaiBaseUrl: 'http://x', openaiModel: 'm', targetLang: 'zh-CN', sourceLang: 'ja' }, fakeFetch);
+  const r = await t.translate('今日は寒い', { srcLang: 'ja', unsure: true });
+  assert.equal(r.text, '今天很冷');
+  assert.match(sent[0].messages.at(-1).content, /^【识别可能有误】/);
+  assert.match(sent[0].messages[0].content, /宁可译得含糊/);
+});

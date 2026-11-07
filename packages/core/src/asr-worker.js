@@ -47,6 +47,17 @@ function friendlyError(err) {
   return msg;
 }
 
+/**
+ * Was this sentence possibly misheard? Each model has its own confidence scale; thresholds were tuned on real conversational speech:
+ * about 70% of sentences below the threshold really do contain more errors
+ */
+const UNSURE_BELOW = { 'parakeet-ja': 0.88, 'zipformer-zh': 0.8, 'parakeet-en': 0.88, sensevoice: 0.85 };
+function isUnsure(r, text) {
+  const th = UNSURE_BELOW[r.model];
+  if (!th || r.conf == null || !text) return false;
+  return [...text.replace(/[\s\p{P}\p{S}]/gu, '')].length >= 3 && r.conf < th;
+}
+
 /** The glossary's source terms double as recognition hotwords */
 function hotwords(text) {
   const g = parsePairs(text).map(([a]) => a).filter(a => a.length >= 2);
@@ -108,7 +119,7 @@ async function init(m) {
   if (primary === 'parakeet-ja' || primary === 'parakeet-en') {
     const p = await LOAD[primary]();
     const lang = primary === 'parakeet-ja' ? 'ja' : 'en';
-    eng = { name: primary, label: NAMES[primary], transcribe: async (a) => ({ ...(await p.transcribe(a)), lang }), setHotwords: p.setHotwords };
+    eng = { name: primary, label: NAMES[primary], transcribe: async (a) => ({ ...(await p.transcribe(a)), lang, model: primary }), setHotwords: p.setHotwords };
   } else if (primary === 'sensevoice') {
     const sv = await LOAD.sensevoice();
     // Refine models: in single-language mode (Chinese) loaded before starting; in multi-language mode switched on demand (see below)
@@ -140,11 +151,11 @@ async function init(m) {
           if (streak.n >= 2 && !switching) switchTo(lang);
         } else if (f) streak = { lang, n: 0 };
         // Partials use SenseVoice only (fast); finals go to that language's refine model
-        if (partial || !f || !r.text) return { ...r, lang };
+        if (partial || !f || !r.text) return { ...r, lang, model: 'sensevoice' };
         const x = await f.transcribe(a);
         // Chinese: Zipformer has more accurate characters but no punctuation; take punctuation and digits from SenseVoice
-        if (lang === 'zh') return { text: transferPunct(x.text, r.text), conf: x.conf, lang };
-        return { ...x, lang };
+        if (lang === 'zh') return { text: transferPunct(x.text, r.text), conf: x.conf, lang, model: REFINE_MODEL.zh };
+        return { ...x, lang, model: REFINE_MODEL[lang] };
       },
       setHotwords: (w) => { hw = w; sv.setHotwords(w); for (const f of Object.values(fine)) f.setHotwords(w); },
     };
@@ -251,7 +262,7 @@ async function pump() {
             const emb = p.emb ?? normalize(await spk.embedder.embed(audio));
             speaker = spk.clusterer.assign(emb, audio.length / 16000);
           }
-          out.push({ sub: i, text, conf: r.conf, speaker, startMs: job.startMs + p.start / 16, endMs: job.startMs + p.end / 16, dur: +(audio.length / 16000).toFixed(2), parts: parts.length, lang: r.lang ?? null });
+          out.push({ sub: i, text, conf: r.conf, unsure: isUnsure(r, text), speaker, startMs: job.startMs + p.start / 16, endMs: job.startMs + p.end / 16, dur: +(audio.length / 16000).toFixed(2), parts: parts.length, lang: r.lang ?? null });
         }
         post({ type: 'final', id: job.id, cut: !!job.cut, parts: out, ms: Math.round(performance.now() - t0), audioMs: Math.round(job.audio.length / 16) });
       } catch (err) {

@@ -91,5 +91,5 @@ export function transferPunct(zf, sv) {
     if (nu) { out += nu.text; j += nu.len - 1; out += after[j]; continue; }
     out += b[j] + after[j];
   }
-  return out;
+  return out.replace(/([？！。?!…])[，、,；;]+/g, '$1').replace(/([，、])[，、]+/g, '$1');
 }

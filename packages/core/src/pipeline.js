@@ -129,9 +129,9 @@ export class CaptionPipeline {
     parts.forEach((p, i) => {
       const key = base + p.sub;
       const translating = this.tm.enabled;
-      this.transcript.set(key, { t: p.startMs, end: p.endMs, text: p.text, speaker: p.speaker, conf: p.conf, translation: '', dur: p.dur, lang: p.lang ?? null });
-      this.o.onCaption({ key, text: p.text, final: true, speaker: p.speaker, conf: p.conf, lang: p.lang ?? null, pendingTranslation: translating });
-      if (translating) this.tm.add({ key, text: p.text, speaker: p.speaker, lang: p.lang ?? null, cut: m.cut || i < parts.length - 1 && parts[i + 1].speaker === p.speaker, conf: p.conf });
+      this.transcript.set(key, { t: p.startMs, end: p.endMs, text: p.text, speaker: p.speaker, conf: p.conf, unsure: !!p.unsure, translation: '', dur: p.dur, lang: p.lang ?? null });
+      this.o.onCaption({ key, text: p.text, final: true, speaker: p.speaker, conf: p.conf, unsure: !!p.unsure, lang: p.lang ?? null, pendingTranslation: translating });
+      if (translating) this.tm.add({ key, text: p.text, speaker: p.speaker, lang: p.lang ?? null, cut: m.cut || i < parts.length - 1 && parts[i + 1].speaker === p.speaker, conf: p.conf, unsure: !!p.unsure });
     });
     // If the recognizer split a segment between speakers, withdraw the original partial caption key when it is unused
     if (parts.length && !parts.some(p => p.sub === 0)) this.o.onCaption({ key: base, removed: true });
@@ -145,7 +145,7 @@ export class CaptionPipeline {
       const rec = this.transcript.get(key);
       const last = i === keys.length - 1;
       if (rec) { rec.translation = last ? text : ''; rec.merged = !last; rec.tlang = meta.target ?? null; }
-      this.o.onCaption({ key, ...(rec ? { text: rec.text, speaker: rec.speaker, conf: rec.conf, lang: rec.lang } : {}), final: true,
+      this.o.onCaption({ key, ...(rec ? { text: rec.text, speaker: rec.speaker, conf: rec.conf, lang: rec.lang, unsure: rec.unsure && !meta.fixed } : {}), final: true,
         translation: last ? text : '', merged: !last, tlang: meta.target ?? null, skipped: meta.skipped, translationError: last ? meta.error : undefined });
     });
     if (meta.error) this._status({ state: 'warn', message: '翻译失败：' + meta.error });

@@ -20,7 +20,8 @@ export const CAPTION_CSS = `
 .ls-partial{color:#bfe3ff}
 .ls-pending{opacity:.55}
 .ls-old{opacity:.62}
-.ls-low{opacity:.7;font-style:italic}
+.ls-low{opacity:.78}
+.ls-unsure{display:inline-block;font-size:.62em;font-weight:600;padding:0 .4em;margin-right:.4em;border-radius:.5em;border:1px solid #ffd27a;color:#ffd27a;vertical-align:.2em;font-style:normal}
 .ls-who{display:inline-block;font-size:.62em;font-weight:600;padding:0 .45em;margin-right:.45em;border-radius:.5em;color:#111;vertical-align:.15em;font-style:normal}
 .ls-status{font-size:13px;color:#ffd27a;background:rgba(0,0,0,.65);padding:3px 10px;border-radius:6px;max-width:100%}
 .ls-err{font-size:.6em;color:#ffb0b0}
@@ -76,7 +77,7 @@ export class CaptionView {
     if (c.removed) this.items.delete(c.key);
     else {
       const it = this.items.get(c.key) ?? {};
-      for (const k of ['text', 'final', 'speaker', 'conf', 'merged', 'lang', 'tlang']) if (c[k] !== undefined) it[k] = c[k];
+      for (const k of ['text', 'final', 'speaker', 'conf', 'unsure', 'merged', 'lang', 'tlang']) if (c[k] !== undefined) it[k] = c[k];
       if (c.translation !== undefined) { it.translation = c.translation; it.pending = false; }
       else if (c.pendingTranslation) it.pending = true;
       if (c.translationError !== undefined) it.err = c.translationError;
@@ -118,7 +119,7 @@ export class CaptionView {
     if (this.status) frag.appendChild(el('div', 'ls-status', this.status));
     const vis = this.visible();
     vis.forEach(([, it], idx) => {
-      const cls = 'ls-line' + (idx < vis.length - 1 ? ' ls-old' : '') + (it.final && it.conf != null && it.conf < 0.6 ? ' ls-low' : '');
+      const cls = 'ls-line' + (idx < vis.length - 1 ? ' ls-old' : '') + (it.final && it.unsure ? ' ls-low' : '');
       const box = el('div', cls);
       const color = it.final && it.speaker != null ? SPEAKER_COLORS[it.speaker % SPEAKER_COLORS.length] : null;
       const tag = () => {
@@ -152,6 +153,8 @@ export class CaptionView {
         if (color) s.style.color = color;
         box.appendChild(s);
       }
+      // Possibly misheard sentence: add an "unclear?" mark so viewers don't take a wrong caption at face value
+      if (it.final && it.unsure) (box.firstChild ?? box).prepend(el('span', 'ls-unsure', '听不清?'));
       if (it.err && !tr && this.display !== 'source') box.appendChild(el('span', 'ls-err', ' ⚠ 翻译失败'));
       if (color) box.style.boxShadow = `inset 4px 0 0 ${color}`;
       frag.appendChild(box);

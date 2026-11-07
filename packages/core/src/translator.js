@@ -35,7 +35,7 @@ export function sanitizeTranslation(out, src, targetLang) {
 export function parseFixed(raw) {
   const t = String(raw ?? '').trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
   const m = /\{[\s\S]*\}/.exec(t);
-  if (m) { try { const j = JSON.parse(m[0]); if (typeof j.dst === 'string') return { tr: j.dst, fix: typeof j.src === 'string' ? j.src.trim() : null }; } catch {} }
+  if (m) { try { const j = JSON.parse(m[0]); if (typeof j.dst === 'string') return { tr: j.dst, fix: typeof j.src === 'string' ? j.src.replace(/^【识别可能有误】/, '').trim() : null }; } catch {} }
   return { tr: t, fix: null };
 }
 const lev = (a, b) => { a = [...a]; b = [...b]; let p = Array.from({ length: b.length + 1 }, (_, i) => i); for (let i = 1; i <= a.length; i++) { const c = [i]; for (let j = 1; j <= b.length; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; } return p[b.length]; };
@@ -73,14 +73,14 @@ export class Translator {
   get fixOn() { return this.s.translator === 'openai' && this.s.asrFix !== false; }
 
   /** @returns {Promise<{text:string, error?:string, provider?:string, target?:string}>} */
-  async translate(text, { srcLang, target } = {}) {
+  async translate(text, { srcLang, target, unsure = false } = {}) {
     if (!this.enabled || !text) return { text: '' };
     const src = srcLang || (this.s.sourceLang === 'auto' ? guessLang(text) : this.s.sourceLang) || 'auto';
     const dst = target ?? pickTarget(src, this.s);
     if (!dst) return { text: '', skipped: 'same-language' };
     const clean = stripFillers(text, baseLang(src));
     if (!clean) return { text: '' };
-    const key = `${this.s.translator}|${src}>${dst}|${clean}`;
+    const key = `${this.s.translator}|${src}>${dst}|${unsure ? '?' : ''}${clean}`;
     if (this.cache.has(key)) return { text: this.cache.get(key), provider: 'cache', target: dst };
 
     const order = this.s.translator === 'openai' ? ['openai', 'google'] : ['google'];
@@ -88,7 +88,7 @@ export class Translator {
     for (const p of order) {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const raw = p === 'openai' ? await this._openai(clean, src, dst) : await this._google(clean, src, dst);
+          const raw = p === 'openai' ? await this._openai(clean, src, dst, unsure) : await this._google(clean, src, dst);
           const { tr, fix } = p === 'openai' && this.fixOn ? parseFixed(raw) : { tr: raw, fix: null };
           const fixed = fix ? acceptFix(fix, clean) : null;
           const out = sanitizeTranslation(tr, fixed ?? clean, dst);
@@ -124,14 +124,15 @@ export class Translator {
     } finally { to.done(); }
   }
 
-  async _openai(text, src, dst) {
+  async _openai(text, src, dst, unsure = false) {
     const s = this.s;
     if (!s.openaiApiKey && !/localhost|127\.0\.0\.1/.test(s.openaiBaseUrl)) throw new Error('未填写 API Key');
     const fix = this.fixOn;
     const messages = [{ role: 'system', content: systemPrompt({ src, dst, scene: SCENES[s.scene]?.name, glossary: this._glossary(), fix, title: [s.topic, s.pageTitle].filter(Boolean).join(' / ') }) }];
     for (const h of (this.history.get(`${baseLang(src)}>${dst}`) ?? []).slice(-3))
       messages.push({ role: 'user', content: h.src }, { role: 'assistant', content: fix ? JSON.stringify({ src: h.src, dst: h.dst }) : h.dst });
-    messages.push({ role: 'user', content: text });
+    // low recognition confidence: warn the model that the source may be misheard; vague is better than confidently wrong
+    messages.push({ role: 'user', content: unsure ? `【识别可能有误】${text}` : text });
     const to = withTimeout(12000);
     try {
       const r = await this.fetch(s.openaiBaseUrl.replace(/\/+$/, '') + '/chat/completions', {
@@ -180,7 +181,7 @@ export class TranslationManager {
   set settings(s) { this.translator.s = s; }
   get enabled() { return this.translator.enabled; }
 
-  add({ key, text, speaker = null, cut = false, conf = 1, lang = null }) {
+  add({ key, text, speaker = null, cut = false, conf = 1, lang = null, unsure = false }) {
     if (!this.enabled) return;
     const s = this.settings;
     const srcLang = lang || (s.sourceLang === 'auto' ? guessLang(text) : s.sourceLang);
@@ -189,9 +190,9 @@ export class TranslationManager {
     const p = this.pending;
     const joinable = p && p.speaker === speaker && p.lang === srcLang && p.chars + text.length < 140;
     if (p && !joinable) this._flush();
-    if (!this.pending) this.pending = { keys: [], texts: [], speaker, lang: srcLang, chars: 0, timer: null };
+    if (!this.pending) this.pending = { keys: [], texts: [], speaker, lang: srcLang, chars: 0, timer: null, unsure: false };
     const g = this.pending;
-    g.keys.push(key); g.texts.push(text); g.chars += text.length;
+    g.keys.push(key); g.texts.push(text); g.chars += text.length; g.unsure ||= unsure;
     clearTimeout(g.timer);
     const incomplete = cut || looksIncomplete(text, baseLang(srcLang));
     if (!incomplete || g.keys.length >= 4) this._flush();
@@ -207,7 +208,7 @@ export class TranslationManager {
     const sep = L === 'ja' || L === 'zh' ? '' : ' ';
     const text = g.texts.map((t, i) => i < g.texts.length - 1 ? t.replace(/[。．]$/, '') : t).join(sep);
     this.chain = this.chain.then(async () => {
-      const r = await this.translator.translate(text, { srcLang: g.lang });
+      const r = await this.translator.translate(text, { srcLang: g.lang, unsure: g.unsure });
       this.onResult(g.keys, r.text, { error: r.error, provider: r.provider, merged: g.keys.length > 1, source: text, target: r.target, skipped: r.skipped, fixed: g.keys.length === 1 ? r.fixed : null });
     });
   }
