@@ -6,6 +6,7 @@ import { TARGET_LANGS, langName, SCENES } from './config.js';
 import { looksIncomplete, stripFillers, parsePairs } from './postprocess.js';
 import { checkTarget, normalizePunct, baseLang, guessLang } from './lang-text.js';
 import { systemPrompt } from './translate-prompts.js';
+import { t as tr } from './i18n.js';
 import { NOT_JA, countIn } from './zh-script.js';
 
 function withTimeout(ms) {
@@ -55,6 +56,32 @@ export function acceptFix(fix, orig, lang = null) {
   return lev(a, b) <= Math.max(1, Math.round([...b].length * 0.3)) ? fix : null;
 }
 
+/** Is a recheck result trustworthy: right language, sane length, not an explanation */
+export function acceptRecheck(out, asr, lang) {
+  let t = out.trim().replace(/^```\w*\s*|\s*```$/g, '').replace(/^[「『"“]|[」』"”]$/g, '').trim();
+  if (!t || /\n/.test(t)) return null;
+  if (/转写|本机|识别结果|音频|transcri|audio|I cannot|听不清/i.test(t)) return null;
+  if (lang === 'ja' || lang === 'zh') t = t.replace(/(?<=[^\sA-Za-z0-9])\s+(?=[^\sA-Za-z0-9])/g, ''); // drop spaces the model inserted into Chinese/Japanese
+  const n = (x) => [...x.replace(/[\s\p{P}\p{S}]/gu, '')].length;
+  const a = n(t), b = n(asr);
+  if (!a || a > Math.max(8, b * 2.5) || a < b * 0.3) return null;
+  if (lang === 'ja' && countIn(t, NOT_JA) > countIn(asr, NOT_JA) + 1) return null;
+  if (lang === 'zh' && /[ぁ-ゖァ-ヺ]/.test(t) && !/[ぁ-ゖァ-ヺ]/.test(asr)) return null;
+  if (lang === 'en' && !/[A-Za-z]/.test(t)) return null;
+  return normalizePunct(t, lang);
+}
+
+function wavBase64(pcm) {
+  const n = pcm.length, b = new ArrayBuffer(44 + n * 2), v = new DataView(b);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, pcm[i], true);
+  const u = new Uint8Array(b); let s = '';
+  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
 /**
  * Decide what this sentence is translated into:
  *   - sentence language == target -> reverseLang in two-way mode, otherwise not translated
@@ -78,6 +105,43 @@ export class Translator {
   get rateLimited() { return Date.now() < this.limitedUntil; }
 
   get enabled() { return !!this.s.translate && this.s.translator !== 'none'; }
+  /** Cloud recheck: send a low-confidence sentence's audio to an LLM for re-transcription (needs an audio-capable model such as Gemini) */
+  get recheckOn() { return this.s.translator === 'openai' && !!this.s.openaiApiKey && this.s.recheck !== false && !this.recheckBroken; }
+
+  /**
+   * @param {Int16Array} pcm 16 kHz mono  @returns {Promise<string|null>} rechecked source text; null on failure/timeout/untrusted
+   */
+  async recheck(pcm, lang, asrText) {
+    const s = this.s;
+    const L = baseLang(lang) || 'ja';
+    const name = { ja: '日语', zh: '中文', en: '英语', ko: '韩语' }[L] ?? '原语言';
+    const wait = this.nextSlot - Date.now();
+    if (wait > 4000) return null; // rate limited and can't get a slot: use the local result rather than delay the subtitle
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    const to = withTimeout(6000);
+    try {
+      if (this.rateLimited) this.nextSlot = Date.now() + 6500;
+      const r = await this.fetch(s.openaiBaseUrl.replace(/\/+$/, '') + '/chat/completions', {
+        method: 'POST', signal: to.signal,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.openaiApiKey}` },
+        body: JSON.stringify({
+          model: s.recheckModel || s.openaiModel, temperature: 0, max_tokens: 400,
+          // Gemini Flash 'thinks' for 10+ seconds by default; a transcription only needs 'low' (measured 2-3 s)
+          ...(/gemini-[\d.]+-flash(?!-lite)/.test(s.recheckModel || s.openaiModel) ? { reasoning_effort: 'low' } : {}),
+          messages: [
+            { role: 'system', content: `你是语音转写员。用户会给你一段${name}语音，以及本机语音识别的结果（可能有听错的字词）。以音频为准，输出这段语音准确的逐字转写（${name}原文，不要翻译）。规则：只输出转写文字，不加任何说明；口头禅、语气词可以省略；听不清的地方沿用本机结果；不要补充音频里没有的内容。` },
+            { role: 'user', content: [{ type: 'text', text: `本机识别结果：「${asrText}」` }, { type: 'input_audio', input_audio: { data: wavBase64(pcm), format: 'wav' } }] },
+          ],
+        }),
+      });
+      if (r.status === 429) { this.limitedUntil = Date.now() + 120000; return null; }
+      if (r.status === 400 || r.status === 404 || r.status === 415) { this.recheckBroken = true; return null; } // model doesn't accept audio
+      if (!r.ok) return null;
+      const data = await r.json();
+      return acceptRecheck(String(data.choices?.[0]?.message?.content ?? ''), asrText, L);
+    } catch { return null; } finally { to.done(); }
+  }
+
   /** AI proofreading: while translating with an LLM, also fix recognition errors from context (homophones, proper nouns) */
   get fixOn() { return this.s.translator === 'openai' && this.s.asrFix !== false; }
 
@@ -101,14 +165,14 @@ export class Translator {
           const { tr, fix } = p === 'openai' && this.fixOn ? parseFixed(raw) : { tr: raw, fix: null };
           const fixed = fix ? acceptFix(fix, clean, baseLang(src)) : null;
           const out = sanitizeTranslation(tr, fixed ?? clean, dst);
-          if (out == null) { lastErr = '译文校验未通过'; break; }
+          if (out == null) { lastErr = tr('译文校验未通过'); break; }
           const hk = `${baseLang(src)}>${dst}`;
           const h = this.history.get(hk) ?? []; h.push({ src: fixed ?? clean, dst: out }); if (h.length > 4) h.shift(); this.history.set(hk, h);
           this.cache.set(key, out);
           if (this.cache.size > 500) this.cache.delete(this.cache.keys().next().value);
           return { text: out, provider: p, target: dst, fixed: fixed && fixed !== clean ? fixed : null };
         } catch (e) {
-          lastErr = e.name === 'AbortError' ? '超时' : e.message;
+          lastErr = e.name === 'AbortError' ? tr('超时') : e.message;
           if (/API Key|401|403/.test(lastErr)) break;
           if (e.rate && attempt === 0) {
             // rate limited: for the next 2 minutes space requests 6.5 s apart (free tier ~10/min) and retry this one after one interval
@@ -140,7 +204,7 @@ export class Translator {
 
   async _openai(text, src, dst, unsure = false) {
     const s = this.s;
-    if (!s.openaiApiKey && !/localhost|127\.0\.0\.1/.test(s.openaiBaseUrl)) throw new Error('未填写 API Key');
+    if (!s.openaiApiKey && !/localhost|127\.0\.0\.1/.test(s.openaiBaseUrl)) throw new Error(tr('未填写 API Key'));
     const fix = this.fixOn;
     const messages = [{ role: 'system', content: systemPrompt({ src, dst, scene: SCENES[s.scene]?.name, glossary: this._glossary(), fix, title: [s.topic, s.pageTitle].filter(Boolean).join(' / ') }) }];
     for (const h of (this.history.get(`${baseLang(src)}>${dst}`) ?? []).slice(-3))
@@ -163,7 +227,7 @@ export class Translator {
 
   async summarize(transcript) {
     const s = this.s;
-    if (s.translator !== 'openai' || !s.openaiApiKey) throw new Error('总结需要在翻译设置里配置大模型 API');
+    if (s.translator !== 'openai' || !s.openaiApiKey) throw new Error(tr('总结需要在翻译设置里配置大模型 API'));
     const r = await this.fetch(s.openaiBaseUrl.replace(/\/+$/, '') + '/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.openaiApiKey}` },

@@ -1,3 +1,4 @@
+import { setUiLang as __ui } from '../packages/core/src/i18n.js'; __ui('zh');
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { guessLang, normalizePunct, subtitleStyle, checkTarget } from '../packages/core/src/lang-text.js';
@@ -42,7 +43,7 @@ test('目标语言校验：日文译文必须有假名、不能有简体字；�
 });
 
 test('双向模式：按句子语种决定方向', () => {
-  const s = { ...DEFAULT_SETTINGS, targetLang: 'zh-CN', reverseLang: 'ja' };
+  const s = { ...DEFAULT_SETTINGS, translate: true, targetLang: "zh-CN", targetLang: 'zh-CN', reverseLang: 'ja' };
   assert.equal(pickTarget('ja', s), 'zh-CN');
   assert.equal(pickTarget('zh', s), 'ja');
   assert.equal(pickTarget('en', s), 'zh-CN');
@@ -66,7 +67,7 @@ test('翻译：中→日 大模型给出中文 → 拒绝并退回 Google；结�
     if (url.includes('googleapis')) return { ok: true, json: async () => [[['明日は雨が降るでしょう,傘を持ってね']]] };
     return { ok: true, json: async () => ({ choices: [{ message: { content: '明天会下雨，记得带伞' } }] }) };
   };
-  const t = new Translator({ ...DEFAULT_SETTINGS, sourceLang: 'zh', targetLang: 'ja', translator: 'openai', openaiApiKey: 'k' }, fetch);
+  const t = new Translator({ ...DEFAULT_SETTINGS, translate: true, targetLang: "zh-CN", sourceLang: 'zh', targetLang: 'ja', translator: 'openai', openaiApiKey: 'k' }, fetch);
   const r = await t.translate('明天会下雨，记得带伞', { srcLang: 'zh' });
   assert.equal(r.provider, 'google');
   assert.equal(r.text, '明日は雨が降るでしょう、傘を持ってね');
@@ -76,7 +77,7 @@ test('翻译管理器：同语言跳过；双向时中文句翻成日文；不�
   const seen = [];
   const fetch = async (url) => { const q = new URL(url); seen.push(`${q.searchParams.get('sl')}>${q.searchParams.get('tl')}:${q.searchParams.get('q')}`); return { ok: true, json: async () => [[['T']]] }; };
   const out = [];
-  const m = new TranslationManager({ settings: { ...DEFAULT_SETTINGS, sourceLang: 'auto', targetLang: 'zh-CN', reverseLang: '' }, fetch, onResult: (k, t, meta) => out.push([k, meta.skipped ?? meta.target]) });
+  const m = new TranslationManager({ settings: { ...DEFAULT_SETTINGS, translate: true, targetLang: "zh-CN", sourceLang: 'auto', targetLang: 'zh-CN', reverseLang: '' }, fetch, onResult: (k, t, meta) => out.push([k, meta.skipped ?? meta.target]) });
   m.add({ key: 1, text: '这是中文。', lang: 'zh' });
   m.add({ key: 2, text: 'これは日本語です。', lang: 'ja' });
   await m.flush();

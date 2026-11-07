@@ -65,7 +65,8 @@ async function buildE2E() {
   await fresh(out);
   await buildRuntime(out);
   await cp(r('test-e2e/harness.html'), path.join(out, 'harness.html'));
-  await esbuild.build({ ...common, minify: false, format: 'esm', outdir: out, entryPoints: { harness: r('test-e2e/harness.js') } });
+  await cp(r('test-e2e/display.html'), path.join(out, 'display.html'));
+  await esbuild.build({ ...common, minify: false, format: 'esm', outdir: out, entryPoints: { harness: r('test-e2e/harness.js'), display: r('test-e2e/display.js') } });
 }
 
 const which = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : null;

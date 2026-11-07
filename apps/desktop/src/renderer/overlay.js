@@ -11,7 +11,7 @@ window.livesub.onOverlay((m) => {
       clearTimeout(statusTimer);
       if (m.state === 'loading' && m.progress != null && m.progress < 1) view.setStatus(m.message);
       else view.setStatus(m.state === 'ready' ? '✔ ' + m.message : m.message);
-      if (m.state === 'ready' || m.state === 'warn') statusTimer = setTimeout(() => view.setStatus(''), 4000);
+      if (m.state !== 'loading' || m.needModel) statusTimer = setTimeout(() => view.setStatus(''), m.state === 'error' ? 12000 : m.needModel ? 6000 : 4000);
       break;
     case 'settings': {
       const s = m.settings;

@@ -1,5 +1,6 @@
 // Settings form (shared by the extension popup and the desktop control panel)
 import { SOURCE_LANGS, TARGET_LANGS, ENGINES, SCENES, SCENE_KEYS, applyScene } from './config.js';
+import { t, translateDOM } from './i18n.js';
 
 export const FORM_CSS = `
 .lsf{display:flex;flex-direction:column;gap:10px;font-size:13px}
@@ -47,17 +48,20 @@ export function renderSettingsForm(container, settings, onChange) {
     <label data-show="translator=openai"><span>API Key</span><input type="password" name="openaiApiKey" autocomplete="off"></label>
     <label data-show="translator=openai"><span>模型</span><input type="text" name="openaiModel" spellcheck="false"></label>
     <label data-show="translator=openai"><span>AI 校对原文</span><select name="asrFix">${opt('true', '开（按上下文改正同音字、人名）')}${opt('false', '关')}</select></label>
+    <label data-show="translator=openai"><span>云端复核</span><select name="recheck">${opt('true', '开（只把「听不清?」的句子发去重新听写）')}${opt('false', '关')}</select></label>
     <p class="hint" data-show="translator=openai">任何 OpenAI 兼容接口：DeepSeek（默认）、OpenAI、本地 Ollama（http://localhost:11434/v1）；Gemini 填 https://generativelanguage.googleapis.com/v1beta/openai ，模型 gemini-3.5-flash-lite（实测约 1~3 秒，免费档每分钟约 10 次，超了会自动合并句子、排队）。大模型出错时会自动退回 Google。</p>
   </fieldset>
   <fieldset><legend>显示</legend>
     <label><span>显示内容</span><select name="display">${opt('both', '原文 + 译文')}${opt('target', '只显示译文')}${opt('source', '只显示原文')}</select></label>
     <label><span>排列</span><select name="layout">${opt('src-top', '原文在上（小字）')}${opt('dst-top', '译文在上')}</select></label>
     <label><span>标点</span><select name="subtitlePunct">${opt('true', '字幕风格（句末不加句号）')}${opt('false', '保留原样')}</select></label>
-    <label><span>同时显示</span><select name="maxLines">${opt('1', '1 条')}${opt('2', '2 条')}${opt('3', '3 条')}</select></label>
+    <label><span>同时显示</span><select name="maxLines">${opt('1', '1 句')}${opt('2', '2 句（推荐）')}${opt('3', '3 句')}</select></label>
+    <label><span>字幕框宽度</span><input type="range" name="boxWidth" min="40" max="100" step="5"></label>
     <label><span>字号</span><input type="range" name="fontSize" min="16" max="56" step="2"></label>
     <label><span>背景深浅</span><input type="range" name="bgOpacity" min="0" max="0.9" step="0.05"></label>
-    <label><span>区分说话人</span><select name="diarize">${opt('true', '开（不同颜色）')}${opt('false', '关')}</select></label>
+    <label><span>区分说话人（Beta）</span><select name="diarize">${opt('false', '关')}${opt('true', '开（不同颜色，试验中）')}</select></label>
     <label data-show="diarize=true"><span>显示 A/B 标记</span><select name="showSpeaker">${opt('true', '显示')}${opt('false', '只用颜色')}</select></label>
+    <label class="ext-only"><span>字幕记录</span><select name="keepTranscript">${opt('false', '关（只留最近的字幕，省内存）')}${opt('true', '开（完整记录，可导出）')}</select></label>
   </fieldset>
   <details><summary>术语与纠错</summary><fieldset>
     <label class="col"><span>在看什么（可选：主播名、游戏名、节目名，帮助识别人名和专有名词）</span><input type="text" name="topic" placeholder="例：兎田ぺこら マイクラ配信 / 原神 / Elden Ring"></label>
@@ -80,6 +84,7 @@ export function renderSettingsForm(container, settings, onChange) {
     <label data-show="translate=true"><span>半句等待</span><input type="range" name="translateHoldMs" min="0" max="3000" step="100"></label>
     <p class="hint">断句停顿越短字幕越快但越碎。同一人被分成多种颜色 → 灵敏度往左；不同人被当成一个 → 往右。半句等待：话没说完时等多久再翻译（合并成整句翻译更通顺）。</p>
   </fieldset></details>`;
+  translateDOM(container);
 
   let s = { ...settings };
   const els = [...container.querySelectorAll('[name]')];
@@ -93,14 +98,14 @@ export function renderSettingsForm(container, settings, onChange) {
     for (const el of els) { const v = s[el.name]; el.value = typeof v === 'boolean' ? String(v) : (v ?? ''); }
     container.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('on', b.dataset.scene === s.scene));
     const sc = SCENES[s.scene];
-    container.querySelector('#sceneHint').textContent = sc ? sc.desc : '自定义参数（点上面的场景可恢复预设）';
+    container.querySelector('#sceneHint').textContent = sc ? t(sc.desc) : t('自定义参数（点上面的场景可恢复预设）');
   };
   const revHint = () => {
-    const t = TARGET_LANGS.find(l => l.code === s.targetLang)?.name ?? s.targetLang;
-    container.querySelector('#revLabel').textContent = `说${t}时`;
+    const tl = t(TARGET_LANGS.find(l => l.code === s.targetLang)?.name ?? s.targetLang);
+    container.querySelector('#revLabel').textContent = t('说{t}时', { t: tl });
     container.querySelector('#revHint').textContent = s.reverseLang
-      ? `双向模式：其他语言 → ${t}；说${t}的句子 → ${TARGET_LANGS.find(l => l.code === s.reverseLang)?.name}。适合中日、中英等两种语言混着说的会议。说的语言建议选「自动」。`
-      : `说的已经是${t}的句子不翻译。`;
+      ? t('双向模式：其他语言 → {t}；说{t}的句子 → {r}。适合中日、中英等两种语言混着说的会议。说的语言建议选「自动」。', { t: tl, r: t(TARGET_LANGS.find(l => l.code === s.reverseLang)?.name ?? '') })
+      : t('说的已经是{t}的句子不翻译。', { t: tl });
   };
   const sync = () => {
     revHint();

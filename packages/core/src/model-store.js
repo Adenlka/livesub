@@ -1,4 +1,5 @@
 // Model file access: a local URL (desktop: already on disk) or remote download + Cache Storage (extension)
+import { t } from './i18n.js';
 import { MODELS, modelUrls } from './config.js';
 
 const CACHE = 'livesub-models-v1';
@@ -59,7 +60,7 @@ async function download(urls, onProgress, sizeHint = 0) {
       for (const c of chunks) { out.set(c, o); o += c.length; }
       onProgress?.(loaded, loaded);
       return out;
-    } catch (e) { lastErr = new Error(`${url.split('/').slice(2, 3)} 下载失败：${e.message}`); }
+    } catch (e) { lastErr = new Error(`${url.split('/').slice(2, 3)} ${t('下载失败：')}${e.message}`); }
   }
-  throw lastErr ?? new Error('没有可用的下载地址');
+  throw lastErr ?? new Error(t('没有可用的下载地址'));
 }

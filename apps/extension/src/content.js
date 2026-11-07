@@ -45,15 +45,15 @@ import { CaptionView, CAPTION_CSS, viewOptions } from '../../../packages/core/sr
   });
   root.addEventListener('dblclick', () => { reset(); try { localStorage.removeItem(posKey); } catch {} });
 
-  let statusTimer = null;
+  let statusTimer = null, started = false;
   chrome.runtime.onMessage.addListener((msg) => {
     switch (msg.type) {
-      case 'caption': view.update(msg); break;
+      case 'caption': started = true; view.update(msg); break;
       case 'status': {
         clearTimeout(statusTimer);
         const pct = msg.state === 'loading' && msg.progress != null && msg.progress < 1 ? '' : '';
         view.setStatus(msg.state === 'ready' ? '✔ ' + msg.message : msg.message + pct);
-        if (msg.state === 'ready' || msg.state === 'warn') statusTimer = setTimeout(() => view.setStatus(''), 4000);
+        if (msg.state !== 'loading' || started) statusTimer = setTimeout(() => view.setStatus(''), msg.state === 'error' ? 12000 : 4000);
         break;
       }
       case 'settings': {
@@ -62,7 +62,7 @@ import { CaptionView, CAPTION_CSS, viewOptions } from '../../../packages/core/sr
         break;
       }
       case 'stopped':
-        view.setStatus('');
+        view.setStatus(''); started = false;
         setTimeout(() => view.clear(), 3000);
         break;
     }

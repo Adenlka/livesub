@@ -1,3 +1,4 @@
+import { setUiLang as __ui } from '../packages/core/src/i18n.js'; __ui('zh');
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CaptionPipeline } from '../packages/core/src/pipeline.js';
@@ -42,7 +43,7 @@ test('pipeline: 切段 → 识别（含拆人）→ 合并翻译 → 字幕事�
   };
   const p = new CaptionPipeline({
     createWorker: (n) => n === 'vad' ? new FakeVad() : new FakeAsr(),
-    assetBase: '/', settings: { ...DEFAULT_SETTINGS, translateHoldMs: 300 }, fetch,
+    assetBase: '/', settings: { ...DEFAULT_SETTINGS, translate: true, targetLang: "zh-CN", translateHoldMs: 300 }, fetch,
     onCaption: (c) => caps.push(c),
   });
   p.start();

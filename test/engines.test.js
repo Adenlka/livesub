@@ -90,3 +90,27 @@ test('AI 校对不许引入别的语言的字形', () => {
   assert.equal(acceptFix('処罚する罪', '処罰する罪', 'ja'), null);
   assert.equal(acceptFix('処罰する罪', '処罰すると罪', 'ja'), '処罰する罪');
 });
+
+import { detectUiLang, setUiLang, t } from '../packages/core/src/i18n.js';
+import { DICT } from '../packages/core/src/i18n-dict.js';
+test('界面语言跟随系统：中/日/英，其他语言用英文', () => {
+  assert.equal(detectUiLang('zh-TW'), 'zh'); assert.equal(detectUiLang('ja-JP'), 'ja');
+  assert.equal(detectUiLang('en-US'), 'en'); assert.equal(detectUiLang('fr-FR'), 'en'); assert.equal(detectUiLang('ko'), 'en');
+  setUiLang('ja'); assert.equal(t('停止字幕'), '字幕を停止');
+  setUiLang('en'); assert.equal(t('本扩展共占用 {mb} MB。', { mb: 5 }), 'Extension storage: 5 MB');
+  setUiLang('zh'); assert.equal(t('停止字幕'), '停止字幕');
+  for (const [k, v] of Object.entries(DICT)) {
+    const vars = (s) => (s.match(/\{\w+\}/g) ?? []).sort().join();
+    assert.equal(vars(v[0]), vars(k), k); assert.equal(vars(v[1]), vars(k), k);
+  }
+});
+
+import { DEFAULT_SETTINGS, essentialModels } from '../packages/core/src/config.js';
+test('默认完全离线、自动识别语言、精识别模型按需下载', () => {
+  assert.equal(DEFAULT_SETTINGS.translate, false);
+  assert.equal(DEFAULT_SETTINGS.recheck, false);
+  assert.equal(DEFAULT_SETTINGS.sourceLang, 'auto');
+  assert.equal(DEFAULT_SETTINGS.keepTranscript, false);
+  assert.deepEqual(essentialModels({ ...DEFAULT_SETTINGS, diarize: true }), ['sensevoice', 'campplus']);
+  assert.deepEqual(essentialModels({ ...DEFAULT_SETTINGS, sourceLang: 'ja', diarize: false }), ['parakeet-ja']);
+});

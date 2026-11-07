@@ -4,6 +4,9 @@ import { TranslationManager } from './translator.js';
 import { RESTART_KEYS } from './settings-form.js';
 
 import { speakerName } from './speaker.js';
+import { t } from './i18n.js';
+import { looksIncomplete } from './postprocess.js';
+import { baseLang } from './lang-text.js';
 export { speakerName };
 const keyOf = (id, sub = 0) => id * 10 + sub;
 
@@ -37,19 +40,19 @@ export class CaptionPipeline {
     this.asr = o.createWorker('asr');
     this.vad.onmessage = (e) => this._onVad(e.data);
     this.asr.onmessage = (e) => this._onAsr(e.data);
-    const onErr = (w) => (e) => this._status({ state: 'error', message: `${w} 出错：${e.message ?? e}` });
-    this.vad.onerror = onErr('切段模块'); this.asr.onerror = onErr('识别模块');
+    const onErr = (w) => (e) => this._status({ state: 'error', message: t('{w}出错：', { w }) + (e.message ?? e) });
+    this.vad.onerror = onErr(t('切段模块')); this.asr.onerror = onErr(t('识别模块'));
   }
 
   _status(s) { this.o.onStatus?.(s); }
 
   start() {
     const s = this.settings;
-    this.vad.postMessage({ type: 'init', assetBase: this.o.assetBase, vad: s.vad, silenceMs: s.silenceMs, maxSegmentMs: s.maxSegmentMs, partialIntervalMs: this.realtime ? 1000 : 1e12 });
+    this.vad.postMessage({ type: 'init', assetBase: this.o.assetBase, vad: s.vad, silenceMs: s.silenceMs, maxSegmentMs: s.maxSegmentMs, partialIntervalMs: this.realtime ? 600 : 1e12 });
     this.asr.postMessage({
       type: 'init', assetBase: this.o.assetBase, localModelBase: this.o.localModelBase, modelHost: s.modelHost,
       engine: s.engine, customModel: s.customModel, device: s.device, sourceLang: s.sourceLang,
-      diarize: s.diarize, splitTurns: s.splitTurns, speakerThreshold: s.speakerThreshold, correctionsText: s.corrections, glossaryText: s.glossary, pageTitle: s.pageTitle ?? '', topic: s.topic ?? '',
+      diarize: s.diarize, splitTurns: s.splitTurns, speakerThreshold: s.speakerThreshold, correctionsText: s.corrections, glossaryText: s.glossary, pageTitle: s.pageTitle ?? '', topic: s.topic ?? '', recheck: this.tm.translator.recheckOn,
     });
   }
 
@@ -60,7 +63,7 @@ export class CaptionPipeline {
     this.tm.settings = this.settings;
     const s = this.settings;
     this.vad.postMessage({ type: 'params', silenceMs: s.silenceMs, maxSegmentMs: s.maxSegmentMs });
-    this.asr.postMessage({ type: 'config', config: { sourceLang: s.sourceLang, splitTurns: s.splitTurns, speakerThreshold: s.speakerThreshold, correctionsText: s.corrections, glossaryText: s.glossary, pageTitle: s.pageTitle ?? '', topic: s.topic ?? '' } });
+    this.asr.postMessage({ type: 'config', config: { sourceLang: s.sourceLang, splitTurns: s.splitTurns, speakerThreshold: s.speakerThreshold, correctionsText: s.corrections, glossaryText: s.glossary, pageTitle: s.pageTitle ?? '', topic: s.topic ?? '', recheck: this.tm.translator.recheckOn } });
     const needsRestart = [...RESTART_KEYS].some(k => prev[k] !== s[k]);
     return { needsRestart };
   }
@@ -77,6 +80,7 @@ export class CaptionPipeline {
   async stop() {
     await new Promise((res) => { this._flushed = res; this.vad.postMessage({ type: 'flush' }); });
     await this.whenIdle();
+    await Promise.all([...(this.rechecks ?? [])]);
     await this.tm.flush();
   }
 
@@ -129,13 +133,34 @@ export class CaptionPipeline {
     parts.forEach((p, i) => {
       const key = base + p.sub;
       const translating = this.tm.enabled;
-      this.transcript.set(key, { t: p.startMs, end: p.endMs, text: p.text, speaker: p.speaker, conf: p.conf, unsure: !!p.unsure, translation: '', dur: p.dur, lang: p.lang ?? null });
-      this.o.onCaption({ key, text: p.text, final: true, speaker: p.speaker, conf: p.conf, unsure: !!p.unsure, lang: p.lang ?? null, pendingTranslation: translating });
-      if (translating) this.tm.add({ key, text: p.text, speaker: p.speaker, lang: p.lang ?? null, cut: m.cut || i < parts.length - 1 && parts[i + 1].speaker === p.speaker, conf: p.conf, unsure: !!p.unsure });
+      this.transcript.set(key, { t: p.startMs, end: p.endMs, text: p.text, speaker: p.speaker, conf: p.conf, unsure: !!p.unsure, translation: '', dur: p.dur, lang: p.lang ?? null, model: p.model ?? null });
+      if (!this.settings.keepTranscript && this.transcript.size > 80) { const old = [...this.transcript.keys()].sort((a, b) => a - b); for (const k of old.slice(0, this.transcript.size - 80)) this.transcript.delete(k); }
+      const cut = m.cut || i < parts.length - 1 && parts[i + 1].speaker === p.speaker;
+      // cont: the sentence isn't finished (cut, or ends in て/けど/が...) -> joined with the next segment on screen
+      const cont = cut || looksIncomplete(p.text, baseLang(p.lang ?? this.settings.sourceLang));
+      this.o.onCaption({ key, text: p.text, final: true, cont, speaker: p.speaker, conf: p.conf, unsure: !!p.unsure, lang: p.lang ?? null, pendingTranslation: translating });
+      if (p.unsure && p.pcm && this.tm.translator.recheckOn) {
+        // Cloud recheck: an LLM re-transcribes low-confidence sentences before translation (waits a few seconds at most, then uses the local result)
+        const job = this._recheck(key, p, cut, translating);
+        (this.rechecks ??= new Set()).add(job); job.finally(() => this.rechecks.delete(job));
+      } else if (translating) this.tm.add({ key, text: p.text, speaker: p.speaker, lang: p.lang ?? null, cut, conf: p.conf, unsure: !!p.unsure });
     });
     // If the recognizer split a segment between speakers, withdraw the original partial caption key when it is unused
     if (parts.length && !parts.some(p => p.sub === 0)) this.o.onCaption({ key: base, removed: true });
     if (this.outstanding === 0) { const r = this.idle; this.idle = []; r.forEach(f => f()); }
+  }
+
+  async _recheck(key, p, cut, translating) {
+    const lang = p.lang ?? (this.settings.sourceLang === 'auto' ? null : this.settings.sourceLang);
+    const r = await this.tm.translator.recheck(p.pcm, lang, p.text).catch(() => null);
+    const rec = this.transcript.get(key);
+    let text = p.text, unsure = true;
+    if (r && rec) {
+      text = r; unsure = false;
+      rec.asr = rec.asr ?? rec.text; rec.text = r; rec.unsure = false; rec.rechecked = true;
+      this.o.onCaption({ key, text: r, final: true, speaker: rec.speaker, conf: rec.conf, unsure: false, lang: rec.lang, pendingTranslation: translating });
+    }
+    if (translating) this.tm.add({ key, text, speaker: p.speaker, lang: p.lang ?? null, cut, conf: p.conf, unsure });
   }
 
   _onTranslation(keys, text, meta) {
@@ -148,7 +173,7 @@ export class CaptionPipeline {
       this.o.onCaption({ key, ...(rec ? { text: rec.text, speaker: rec.speaker, conf: rec.conf, lang: rec.lang, unsure: rec.unsure && !meta.fixed } : {}), final: true,
         translation: last ? text : '', merged: !last, tlang: meta.target ?? null, skipped: meta.skipped, translationError: last ? meta.error : undefined });
     });
-    if (meta.error) this._status({ state: 'warn', message: '翻译失败：' + meta.error });
+    if (meta.error) this._status({ state: 'warn', message: t('翻译失败：') + t(meta.error) });
   }
 
   // --- export ---

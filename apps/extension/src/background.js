@@ -1,3 +1,4 @@
+import { t } from '../../../packages/core/src/i18n.js';
 // Service worker: manages the offscreen document (where recognition runs), injects the subtitle layer into tabs, relays messages
 import { loadSettings } from './settings.js';
 
@@ -30,7 +31,7 @@ async function injectOverlay(tabId) {
     const settings = await loadSettings();
     await chrome.tabs.sendMessage(tabId, { type: 'settings', settings }).catch(() => {});
   } catch {
-    throw new Error('这个页面不能显示字幕（浏览器内部页面或扩展商店）。换到普通网页再试。');
+    throw new Error(t('这个页面不能显示字幕（浏览器内部页面或扩展商店）。换到普通网页再试。'));
   }
 }
 
@@ -42,7 +43,7 @@ async function start(tabId, streamId) {
   const settings = await loadSettings();
   // Tab title (video/stream name): streamer and game names become recognition hotwords and LLM translation context
   settings.pageTitle = await chrome.tabs.get(tabId).then(t => t.title ?? '').catch(() => '');
-  await setState({ tabId, running: true, status: '启动中…', statusState: 'loading' });
+  await setState({ tabId, running: true, status: t('启动中…'), statusState: 'loading' });
   const r = await toOffscreen({ type: 'start', streamId, settings });
   if (r && r.ok === false) throw new Error(r.error);
 }

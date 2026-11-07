@@ -17,3 +17,4 @@ main{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8p
 mark{background:#6b5a14;color:inherit;border-radius:2px}
 .summary{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;white-space:pre-wrap;max-height:40%;overflow:auto}
 .hide{display:none!important}
+.keep{align-items:center;font-size:12px;color:#aaa;gap:6px}.keep>input{flex:0 0 auto}

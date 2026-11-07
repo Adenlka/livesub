@@ -1,5 +1,7 @@
+import { t, translateDOM } from '../../../packages/core/src/i18n.js';
+translateDOM(document.body);
 import { renderSettingsForm, FORM_CSS, RESTART_KEYS } from '../../../packages/core/src/settings-form.js';
-import { requiredModels, MODELS } from '../../../packages/core/src/config.js';
+import { requiredModels, essentialModels, MODELS } from '../../../packages/core/src/config.js';
 import { isModelCached, deleteCachedModels } from '../../../packages/core/src/model-store.js';
 import { loadSettings, saveSettings } from './settings.js';
 
@@ -13,7 +15,7 @@ let settings = await loadSettings();
 function setStatus(text, cls = '', progress = null) {
   const el = $('status');
   el.className = 'status ' + cls;
-  el.textContent = text;
+  el.textContent = t(text);
   if (progress != null && progress < 1) {
     const bar = document.createElement('div'); bar.className = 'progress';
     bar.innerHTML = `<i style="width:${(progress * 100).toFixed(1)}%"></i>`;
@@ -22,7 +24,7 @@ function setStatus(text, cls = '', progress = null) {
 }
 function renderState() {
   const onHere = state.running && state.tabId === tab?.id;
-  $('toggle').textContent = state.running ? (onHere ? '停止字幕' : '停止（正在其他标签页运行）') : '为当前标签页开启字幕';
+  $('toggle').textContent = t(state.running ? (onHere ? '停止字幕' : '停止（正在其他标签页运行）') : '为当前标签页开启字幕');
   $('toggle').classList.toggle('on', state.running);
   if (!state.running) setStatus(state.statusState === 'error' ? state.status : '未开始', state.statusState === 'error' ? 'error' : '');
   else if (state.status) setStatus(state.status, state.statusState);
@@ -33,11 +35,11 @@ async function refreshCacheInfo() {
   const all = Object.keys(MODELS);
   const cached = Object.fromEntries(await Promise.all(all.map(async id => [id, await isModelCached(id)])));
   let usage = '';
-  try { const e = await navigator.storage.estimate(); usage = `本扩展共占用 ${(e.usage / 1e6).toFixed(0)} MB。`; } catch {}
-  $('cacheInfo').textContent = all.map(id => `${MODELS[id].name}：${cached[id] ? '已下载' : '未下载'}${need.includes(id) ? '（当前设置需要）' : ''}`).join('；') + '。' + usage;
-  const missing = need.filter(id => !cached[id]);
+  try { const e = await navigator.storage.estimate(); usage = t('本扩展共占用 {mb} MB。', { mb: (e.usage / 1e6).toFixed(0) }); } catch {}
+  $('cacheInfo').textContent = all.map(id => `${t(MODELS[id].name)}: ${t(cached[id] ? '已下载' : '未下载')}${need.includes(id) ? t('（当前设置需要）') : ''}`).join(' / ') + ' · ' + usage;
+  const missing = essentialModels(settings).filter(id => !cached[id]);
   const mb = missing.reduce((a, id) => a + MODELS[id].size, 0) / 1e6;
-  $('firstRun').textContent = `首次使用当前设置需要下载约 ${mb.toFixed(0)}MB 模型，之后缓存在本机。下载期间可以继续看视频。`;
+  $('firstRun').textContent = t('首次使用需要下载约 {mb}MB 模型（自动在后台完成，之后缓存在本机）。各语言的精识别模型会在第一次听到该语言时再下载。', { mb: mb.toFixed(0) });
   $('firstRun').classList.toggle('hide', !(missing.length && !state.running));
 }
 
@@ -83,7 +85,7 @@ $('unload').onclick = async () => {
 };
 $('clearCache').onclick = async () => {
   if (state.running) { setStatus('先停止字幕再删除模型', 'warn'); return; }
-  if (!confirm('删除已下载的识别模型？下次使用会重新下载。')) return;
+  if (!confirm(t('删除已下载的识别模型？下次使用会重新下载。'))) return;
   await chrome.runtime.sendMessage({ type: 'unloadModel' });
   await deleteCachedModels();
   refreshCacheInfo();

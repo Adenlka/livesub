@@ -1,4 +1,5 @@
 // Online speaker clustering: one voiceprint per segment -> assign to an existing speaker or create a new one
+import { t, uiLang } from './i18n.js';
 // Limitation: overlapping speech within one segment goes to a single speaker
 export const SPEAKER_COLORS = ['#ffe066', '#7ad7ff', '#ff9db5', '#9dffa1', '#ffb86b', '#c9a6ff', '#6bffe1', '#ff7a7a'];
 
@@ -53,4 +54,4 @@ export class SpeakerClusterer {
   reset() { this.speakers = []; this.last = null; }
 }
 
-export const speakerName = (i) => i == null ? '' : '说话人' + String.fromCharCode(65 + (i % 26));
+export const speakerName = (i) => i == null ? '' : t('说话人') + (uiLang() === 'en' ? ' ' : '') + String.fromCharCode(65 + (i % 26));

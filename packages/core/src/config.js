@@ -1,3 +1,4 @@
+import { uiLang } from './i18n.js';
 // Languages, model catalog, scenario presets, default settings
 export const SOURCE_LANGS = [
   { code: 'ja', name: '日语' },
@@ -91,6 +92,12 @@ export function resolveEngine(engine, lang) {
   if (engine === 'sensevoice' && !SV_LANGS.has(lang)) return { primary: 'whisper-small', refine: [] };
   return { primary: engine, refine: [] };
 }
+/** Models required before starting: in auto (multi-language) mode the per-language refine models are fetched on demand when the language is heard */
+export function essentialModels(s) {
+  const { refine } = resolveEngine(s.engine, s.sourceLang);
+  const lazy = refine.length > 1 ? refine.map(l => REFINE_MODEL[l]) : [];
+  return requiredModels(s).filter(id => !lazy.includes(id));
+}
 /** Model files a settings combination needs (the desktop app pre-downloads these) */
 export function requiredModels(s) {
   const { primary, refine } = resolveEngine(s.engine, s.sourceLang);
@@ -103,44 +110,56 @@ export function requiredModels(s) {
 
 // --- scenario presets --- (parameters tuned on synthetic scenario evaluations)
 export const SCENES = {
-  live:    { name: '直播', desc: '主播说话、有背景音乐', silenceMs: 550, maxSegmentMs: 8000, diarize: true, splitTurns: false, translateHoldMs: 1200 },
-  video:   { name: '视频', desc: 'YouTube、电视剧、动画', silenceMs: 650, maxSegmentMs: 9000, diarize: true, splitTurns: true, translateHoldMs: 1200 },
-  meeting: { name: '会议', desc: '多人轮流发言、换人快', silenceMs: 550, maxSegmentMs: 8000, diarize: true, splitTurns: true, translateHoldMs: 1500 },
-  lecture: { name: '课堂/讲座', desc: '一个人长时间讲', silenceMs: 700, maxSegmentMs: 12000, diarize: false, splitTurns: false, translateHoldMs: 2000 },
+  live:    { name: '直播', desc: '主播说话、有背景音乐', silenceMs: 550, maxSegmentMs: 8000, splitTurns: false, translateHoldMs: 1200 },
+  video:   { name: '视频', desc: 'YouTube、电视剧、动画', silenceMs: 650, maxSegmentMs: 9000, splitTurns: true, translateHoldMs: 1200 },
+  meeting: { name: '会议', desc: '多人轮流发言、换人快', silenceMs: 550, maxSegmentMs: 8000, splitTurns: true, translateHoldMs: 1500 },
+  lecture: { name: '课堂/讲座', desc: '一个人长时间讲', silenceMs: 700, maxSegmentMs: 12000, splitTurns: false, translateHoldMs: 2000 },
 };
-export const SCENE_KEYS = ['silenceMs', 'maxSegmentMs', 'diarize', 'splitTurns', 'translateHoldMs'];
+export const SCENE_KEYS = ['silenceMs', 'maxSegmentMs', 'splitTurns', 'translateHoldMs'];
 
 export const DEFAULT_SETTINGS = {
   scene: 'video',
-  sourceLang: 'ja',
+  sourceLang: 'auto',     // auto-detect zh/ja/en/ko by default
   engine: 'auto',
   customModel: '',
   device: 'auto',          // auto | webgpu | wasm (Whisper only)
   modelHost: 'hf',         // hf | mirror | custom URL
   vad: true,               // Silero VAD (energy threshold when off)
-  translate: true,
-  targetLang: 'zh-CN',
+  translate: false,        // fully offline by default: no network, no API calls; translation only when the user turns it on
+  targetLang: ({ zh: 'zh-CN', ja: 'ja', en: 'en' })[uiLang()],
   reverseLang: '',         // two-way mode: sentences already in the target language are translated into this one ('' = don't)
   translator: 'google',    // none | google | openai
   openaiBaseUrl: 'https://api.deepseek.com/v1',
   openaiApiKey: '',
   openaiModel: 'deepseek-chat',
   asrFix: true,            // AI proofreading (when an LLM translates, it also fixes recognition errors from context)
+  recheck: false,          // cloud recheck: low-confidence sentences are re-transcribed by an audio-capable LLM (e.g. Gemini)
+  recheckModel: '',        // model for the recheck ('' = same as translation)
   topic: '',               // what is being watched (streamer / game); used with the extension's tab title as hotwords and translation context
   glossary: '',            // glossary: one 'source=translation' per line (sources double as hotwords)
   corrections: '',         // corrections: one 'wrong=right' per line
+  diarize: false,          // speaker separation (Beta, off by default)
   speakerThreshold: 0.5,
   display: 'both',         // both | source | target
   layout: 'src-top',       // src-top: small source line on top; dst-top: translation on top
   subtitlePunct: true,     // subtitle-style punctuation: no sentence-final period in Chinese/Japanese
   maxChars: 0,             // max characters per caption (0 = auto: CJK 44 / English 90); longer text shows the tail
   showSpeaker: true,
-  maxLines: 2,
+  maxLines: 2,             // sentences shown in the subtitle box at once
+  boxWidth: 80,            // subtitle box width (% of the screen / video width)
   fontSize: 28,
   bgOpacity: 0.62,
-  autoSave: true,          // Desktop: autosave the transcript
+  autoSave: false,         // desktop: autosave the transcript to a file (off by default)
+  keepTranscript: false,   // full transcript (off = keep only the latest 80 sentences, saves memory)
   ...SCENES.video,
+  settingsVer: 5,
 };
+
+/** Settings migration: since v0.4 speaker separation is Beta and off by default */
+export function migrateSettings(s) {
+  if ((s.settingsVer ?? 0) < 5) { s.diarize = false; s.settingsVer = 5; }
+  return s;
+}
 
 export function applyScene(settings, scene) {
   const s = SCENES[scene];

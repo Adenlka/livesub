@@ -1,3 +1,4 @@
+import { t } from '../../../packages/core/src/i18n.js';
 // Offscreen document: capture tab audio -> keep playing the original sound -> subtitle pipeline
 // The pipeline (and loaded models) survives Stop, so the next Start needs no reload
 import { CaptionPipeline } from '../../../packages/core/src/pipeline.js';
@@ -17,7 +18,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         case 'settings': {
           if (!pipe) { sendResponse({ ok: true }); break; }
           const { needsRestart } = pipe.updateSettings(msg.settings);
-          if (needsRestart) send({ type: 'status', state: 'warn', message: '这项设置要重新开始字幕后才生效' });
+          if (needsRestart) send({ type: 'status', state: 'warn', message: t('这项设置要重新开始字幕后才生效') });
           sendResponse({ ok: true, needsRestart });
           break;
         }
@@ -59,7 +60,7 @@ async function start(streamId, settings) {
     pipe.start();
   } else {
     pipe.updateSettings(settings);
-    send({ type: 'status', state: 'ready', message: '识别就绪（模型已加载）' });
+    send({ type: 'status', state: 'ready', message: t('识别就绪（模型已加载）') });
   }
   stream = await navigator.mediaDevices.getUserMedia({
     audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } }, video: false,
@@ -72,7 +73,7 @@ async function start(streamId, settings) {
   src.connect(node);
   node.port.onmessage = (e) => { if (captureOn) pipe?.pushAudio(e.data, ctx.sampleRate); };
   captureOn = true;
-  stream.getAudioTracks()[0].addEventListener('ended', () => send({ type: 'status', state: 'stopped', message: '音频源已结束' }));
+  stream.getAudioTracks()[0].addEventListener('ended', () => send({ type: 'status', state: 'stopped', message: t('音频源已结束') }));
 }
 
 async function stopCapture() {

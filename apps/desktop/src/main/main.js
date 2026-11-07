@@ -4,6 +4,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const { ensureModels, modelInfo } = require('./models.js');
+const { t, setUiLang } = require('../../../../packages/core/src/i18n.js');
+app.whenReady().then(() => setUiLang(app.getLocale()));
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -56,7 +58,7 @@ function createControl() {
   const st = readState().control;
   control = new BrowserWindow({
     width: st?.width ?? 440, height: st?.height ?? 820, x: st?.x, y: st?.y, minWidth: 380, minHeight: 520,
-    title: 'LiveSub 实时字幕', backgroundColor: '#14161b', autoHideMenuBar: true, icon: path.join(REN, 'icon-256.png'),
+    title: t('LiveSub 实时字幕'), backgroundColor: '#14161b', autoHideMenuBar: true, icon: path.join(REN, 'icon-256.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false },
   });
   control.loadURL('app://local/control.html');
@@ -70,7 +72,7 @@ let trayHinted = false;
 function notifyTray() {
   if (trayHinted || !tray) return;
   trayHinted = true;
-  tray.displayBalloon?.({ title: 'LiveSub 还在运行', content: '字幕会继续显示。点托盘图标打开面板，右键可退出。' });
+  tray.displayBalloon?.({ title: t('LiveSub 还在运行'), content: t('字幕会继续显示。点托盘图标打开面板，右键可退出。') });
 }
 
 function createOverlay() {
@@ -107,13 +109,13 @@ function toggleOverlay() { overlay.isVisible() ? overlay.hide() : overlay.showIn
 function updateTray() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '显示控制面板', click: () => { control.show(); control.focus(); } },
-    { label: '开始 / 停止字幕   Ctrl+Alt+S', click: () => control.webContents.send('toggle') },
-    { label: overlayLocked ? '解锁字幕位置（可拖动）   Ctrl+Alt+L' : '锁定字幕位置   Ctrl+Alt+L', click: () => setLocked(!overlayLocked) },
-    { label: '显示 / 隐藏字幕   Ctrl+Alt+H', click: toggleOverlay },
-    { label: '打开字幕记录文件夹', click: () => shell.openPath(transcriptDir()) },
+    { label: t('显示控制面板'), click: () => { control.show(); control.focus(); } },
+    { label: t('开始 / 停止字幕') + '   Ctrl+Alt+S', click: () => control.webContents.send('toggle') },
+    { label: (overlayLocked ? t('解锁字幕位置（可拖动）') : t('锁定字幕位置')) + '   Ctrl+Alt+L', click: () => setLocked(!overlayLocked) },
+    { label: t('显示 / 隐藏字幕') + '   Ctrl+Alt+H', click: toggleOverlay },
+    { label: t('打开字幕记录文件夹'), click: () => shell.openPath(transcriptDir()) },
     { type: 'separator' },
-    { label: '退出 LiveSub', click: () => { app.isQuitting = true; app.quit(); } },
+    { label: t('退出 LiveSub'), click: () => { app.isQuitting = true; app.quit(); } },
   ]));
 }
 
@@ -135,7 +137,7 @@ app.whenReady().then(() => {
   createControl();
   createOverlay();
   tray = new Tray(nativeImage.createFromPath(path.join(REN, 'icon-32.png')));
-  tray.setToolTip('LiveSub 实时字幕');
+  tray.setToolTip(t('LiveSub 实时字幕'));
   tray.on('click', () => { control.show(); control.focus(); });
   updateTray();
   const reg = (acc, fn) => { try { if (!globalShortcut.register(acc, fn)) console.warn('快捷键被占用', acc); } catch {} };
@@ -164,7 +166,7 @@ ipcMain.handle('net-fetch', async (_e, url, init = {}) => {
     const r = await net.fetch(url, { method: init.method ?? 'GET', headers: init.headers, body: init.body, signal: ctl.signal });
     return { ok: r.ok, status: r.status, text: await r.text() };
   } catch (e) {
-    return { ok: false, status: 0, text: '', error: e.name === 'AbortError' ? '超时' : e.message };
+    return { ok: false, status: 0, text: '', error: e.name === 'AbortError' ? t('超时') : e.message };
   } finally { clearTimeout(t); }
 });
 
