@@ -16,6 +16,10 @@ test('中文：把 SenseVoice 的标点/阿拉伯数字移植到 Zipformer 结�
   // numbers don't fully align: keep the Han characters
   assert.equal(transferPunct('大概五百块', '大概600块。'), '大概五百块。');
   assert.equal(transferPunct('', '我。'), '');
+  // the Chinese Zipformer model doesn't output Latin words: restore them from SenseVoice
+  assert.equal(transferPunct('我从他的里边找到了这些照片', '我从他的APP里边找到了这些照片。'), '我从他的APP里边找到了这些照片。');
+  assert.equal(transferPunct('的话不是相对来说开的比较早一些嘛我记得', 'KTV的话不是相对来说开的比较早一些嘛？我记得。'), 'KTV的话不是相对来说开的比较早一些嘛？我记得。');
+  assert.equal(transferPunct('我猜测一百二十八G版的Pixel Tablet很可能', '我猜测128G版的Pixel Tablet很可能。'), '我猜测128G版的Pixel Tablet很可能。');
   assert.equal(transferPunct('工人有没有进行裁员', ''), '工人有没有进行裁员');
 });
 

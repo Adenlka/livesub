@@ -20,11 +20,14 @@ function readings(num) {
 /** SenseVoice text -> unit sequence {ch, punct?, num?} (numbers expand to several characters, num stored on the first) */
 function units(sv, guess) {
   const u = [];
-  const re = /\d+(?:[.,]\d+)*%?|./gsu;
+  const re = /[A-Za-z][A-Za-z0-9'’.&+-]*|\d+(?:[.,]\d+)*%?|./gsu;
   let m;
   while ((m = re.exec(sv))) {
     const t = m[0];
-    if (/^\d/.test(t)) {
+    if (/^[A-Za-z]/.test(t)) {
+      // Latin words (KTV, APP, DNA...): the Chinese Zipformer model rarely outputs Latin, so insert them as a whole
+      u.push({ ch: '\u0000' + t, latin: t.replace(/[.]+$/, '') });
+    } else if (/^\d/.test(t)) {
       const pct = t.endsWith('%'); const core = pct ? t.slice(0, -1) : t;
       // pick a reading, preferring one that appears in text B
       const rs = readings(core).map(r => pct ? '百分之' + r : r);
@@ -44,7 +47,7 @@ function units(sv, guess) {
  */
 export function transferPunct(zf, sv) {
   if (!zf || !sv) return zf || '';
-  const b = [...zf.replace(/\s+/g, '')];
+  const b = [...zf.replace(/(?<![A-Za-z0-9])\s+|\s+(?![A-Za-z0-9])/g, '')];
   const a = units(sv, zf);
   if (!a.length || !b.length) return zf;
   // edit-distance alignment (O(n·m); a subtitle is a few dozen characters, so the cost is negligible)
@@ -61,6 +64,8 @@ export function transferPunct(zf, sv) {
     else j--;
   }
   const after = new Array(m).fill('');
+  const zfLower = zf.toLowerCase();
+  let lead = '';
   const numAt = new Map(); // index into b -> {text, len}
   let lastJ = -1;
   for (let i = 0; i < n; i++) {
@@ -71,12 +76,16 @@ export function transferPunct(zf, sv) {
       for (let k = 0; k < a[i].numLen; k++) { const jj = map[i + k]; if (jj !== j0 + k || a[i + k].ch !== b[jj]) { ok = false; break; } }
       if (ok && j0 >= 0) numAt.set(j0, { text: a[i].num, len: a[i].numLen });
     }
-    if (a[i].after) { const j = map[i] >= 0 ? map[i] : lastJ; if (j >= 0 && !after[j].includes(a[i].after)) after[j] += a[i].after; }
+    if (a[i].latin && a[i].latin.length >= 2 && map[i] < 0 && !zfLower.includes(a[i].latin.toLowerCase())) {
+      // insert at the aligned position: after the previous aligned character (at the very start for sentence-initial words)
+      if (lastJ >= 0) after[lastJ] += (/[A-Za-z0-9]$/.test(after[lastJ]) ? ' ' : '') + a[i].latin; else lead += a[i].latin;
+    }
+    if (a[i].after) { const j = map[i] >= 0 ? map[i] : lastJ; if (j >= 0 && !after[j].includes(a[i].after)) after[j] += a[i].after; else if (j < 0) lead += a[i].after.replace(/[，。！？、；：,.!?;:]/g, ''); }
   }
   // sentence end: if SV has final punctuation but the alignment lands mid-b, move it to the end of b
   const tail = a[n - 1].after;
   if (tail && !after[m - 1]) { for (let j = 0; j < m - 1; j++) if (after[j] === tail && j >= m - 3) after[j] = ''; after[m - 1] = tail; }
-  let out = '';
+  let out = lead;
   for (let j = 0; j < m; j++) {
     const nu = numAt.get(j);
     if (nu) { out += nu.text; j += nu.len - 1; out += after[j]; continue; }

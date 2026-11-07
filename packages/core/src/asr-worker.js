@@ -79,21 +79,21 @@ async function init(m) {
       const [model, tokens] = await files('parakeet-ja', '日语识别模型');
       status('loading', '加载日语识别模型…', { progress: 1 });
       const p = await ParakeetCtc.create({ ort, model, tokens: text(tokens) });
-      return { transcribe: (a) => p.transcribe(a), setHotwords: (w) => p.setHotwords(w, 2.5) };
+      return { transcribe: (a) => p.transcribe(a), setHotwords: (w) => p.setHotwords(w, 2.5), release: () => Promise.all([p.session, p.enc, p.dec, p.join].filter(Boolean).map(x => x.release?.())), };
     },
     'parakeet-en': async () => {
       status('loading', '准备英语识别模型…', { progress: 0 });
       const [encoder, decoder, joiner, tokens] = await files('parakeet-en', '英语识别模型');
       status('loading', '加载英语识别模型…', { progress: 1 });
       const p = await ParakeetTdt.create({ ort, encoder, decoder, joiner, tokens: text(tokens) });
-      return { transcribe: async (a) => { const r = await p.transcribe(a); return { ...r, text: enItn(r.text) }; }, setHotwords: () => {} };
+      return { transcribe: async (a) => { const r = await p.transcribe(a); return { ...r, text: enItn(r.text) }; }, setHotwords: () => {}, release: () => Promise.all([p.session, p.enc, p.dec, p.join].filter(Boolean).map(x => x.release?.())), };
     },
     'zipformer-zh': async () => {
       status('loading', '准备中文识别模型…', { progress: 0 });
       const [model, tokens] = await files('zipformer-zh', '中文识别模型');
       status('loading', '加载中文识别模型…', { progress: 1 });
       const z = await ZipformerCtc.create({ ort, model, tokens: text(tokens) });
-      return { transcribe: (a) => z.transcribe(a), setHotwords: (w) => z.setHotwords(w, 2.5) };
+      return { transcribe: (a) => z.transcribe(a), setHotwords: (w) => z.setHotwords(w, 2.5), release: () => z.session.release?.() };
     },
     'sensevoice': async () => {
       status('loading', '准备中英日识别模型…', { progress: 0 });
@@ -111,15 +111,23 @@ async function init(m) {
     eng = { name: primary, label: NAMES[primary], transcribe: async (a) => ({ ...(await p.transcribe(a)), lang }), setHotwords: p.setHotwords };
   } else if (primary === 'sensevoice') {
     const sv = await LOAD.sensevoice();
-    // Refine models: loaded together in single-language mode (Chinese); in multi-language mode loaded in the background in order, using SenseVoice for a language until its model is ready
+    // Refine models: in single-language mode (Chinese) loaded before starting; in multi-language mode switched on demand (see below)
     const fine = {};      // lang -> loaded model
     let hw = [];
     const loadFine = async (l) => {
       try { const x = await LOAD[REFINE_MODEL[l]](); x.setHotwords(hw); fine[l] = x; return x; }
       catch (err) { status('warn', `${NAMES[REFINE_MODEL[l]]}加载失败，${l === 'zh' ? '中文' : l === 'ja' ? '日语' : '英语'}改用 SenseVoice：` + friendlyError(err)); return null; }
     };
-    const bg = false; // Multi-language mode also loads everything before starting (with background loading, only SenseVoice is available for the first minute or two and accuracy is unstable)
-    if (!bg) for (const l of refine) await loadFine(l);
+    // Multi-language mode: to save memory, keep only one refine model at a time (about 0.6-1 GB each).
+    // Switch to a language's refine model after it appears in 2 sentences in a row (loaded in the background; SenseVoice is used until it is ready)
+    const multi = refine.length > 1;
+    let active = null, switching = null, streak = { lang: null, n: 0 };
+    const switchTo = (l) => switching ??= (async () => {
+      if (active && fine[active]) { const old = fine[active]; delete fine[active]; try { await old.release?.(); } catch {} }
+      active = null;
+      if (await loadFine(l)) { active = l; status('ready', `识别就绪：${eng.label}`, { engine: eng.name, threads: ort.env.wasm.numThreads, speakers: !!spk }); }
+    })().finally(() => { switching = null; });
+    if (!multi) for (const l of refine) await loadFine(l);
     eng = {
       name: primary,
       get label() { return ['SenseVoice', ...Object.keys(fine).map(l => NAMES[REFINE_MODEL[l]])].join(' + '); },
@@ -127,6 +135,10 @@ async function init(m) {
         const r = await sv.transcribe(a, cfg.sourceLang === 'auto' ? 'auto' : cfg.sourceLang);
         const lang = r.lang ?? (cfg.sourceLang === 'auto' ? null : cfg.sourceLang);
         const f = fine[lang];
+        if (multi && !partial && r.text && lang && REFINE_MODEL[lang] && !f) {
+          streak = streak.lang === lang ? { lang, n: streak.n + 1 } : { lang, n: 1 };
+          if (streak.n >= 2 && !switching) switchTo(lang);
+        } else if (f) streak = { lang, n: 0 };
         // Partials use SenseVoice only (fast); finals go to that language's refine model
         if (partial || !f || !r.text) return { ...r, lang };
         const x = await f.transcribe(a);
@@ -136,13 +148,6 @@ async function init(m) {
       },
       setHotwords: (w) => { hw = w; sv.setHotwords(w); for (const f of Object.values(fine)) f.setHotwords(w); },
     };
-    if (bg) {
-      (async () => {
-        for (const l of refine) {
-          if (await loadFine(l)) status('ready', `识别就绪：${eng.label}`, { engine: eng.name, threads: ort.env.wasm.numThreads, speakers: !!spk });
-        }
-      })();
-    }
   } else {
     eng = await loadWhisper(primary, m, progress('Whisper 模型'));
   }

@@ -54,6 +54,8 @@ export function cleanText(text, { lang = 'ja', engine = 'parakeet-ja', conf = 1,
   let t = (text ?? '').replace(/\s+/g, ' ').trim();
   if (lang === 'ja' || lang === 'zh' || lang === 'auto') t = t.replace(SPACE_BETWEEN_CJK, '');
   t = collapseRepeats(t);
+  // English fillers um/uh/erm are not subtitled (Parakeet English transcribes them verbatim)
+  if (lang === 'en') t = t.replace(/(^|[\s,])(?:um+|uh+|erm|uhm)(?=[\s,.!?]|$)[,]?/gi, '$1').replace(/\s{2,}/g, ' ').replace(/^\s*,\s*/, '').replace(/\s+([,.!?])/g, '$1').trim();
   t = t.replace(/^[、。,.]+/, '').trim();
   if (PUNCT_ONLY.test(t)) return '';
   // Very short and unsure ('あっ', 'うん' popping out of music/breathing; measured confidence 0.47-0.86, a real 'はい' is usually >= 0.95)

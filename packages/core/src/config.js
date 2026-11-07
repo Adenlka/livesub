@@ -61,7 +61,7 @@ export function modelUrls(id, file, host = 'hf') {
 //     Japanese: Parakeet-ja -- ~10% CER on real speech (SenseVoice: 22% on TV shows)
 //     Chinese:  Zipformer-zh text + SenseVoice punctuation/digits -- meetings 7.1% / web video 5.3% (SenseVoice alone 8.9% / 7.2%)
 //     English:  Parakeet-TDT-en -- meetings 10.8% / YouTube 12.1% (SenseVoice 15.3% / 16.4%)
-//   Auto: SenseVoice detects the language per sentence, then hands it to that language's refine model (loaded in the background; SenseVoice results are used until it is ready)
+//     Auto:     SenseVoice identifies the language per sentence, then the language's refine model (one loaded at a time, switched on demand)
 export const ENGINES = [
   { id: 'auto', name: '自动（推荐，各语言用最准的模型）' },
   { id: 'sensevoice', name: '轻量：只用 SenseVoice（约 240MB，准确率略低）' },
