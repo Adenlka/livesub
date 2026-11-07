@@ -82,8 +82,9 @@ export const REFINE_MODEL = { ja: 'parakeet-ja', zh: 'zipformer-zh', en: 'parake
  */
 export function resolveEngine(engine, lang) {
   if (engine === 'auto' || engine === 'parakeet-ja') { // parakeet-ja: legacy setting, same as auto
-    if (lang === 'ja') return { primary: 'parakeet-ja', refine: [] };
-    if (lang === 'en') return { primary: 'parakeet-en', refine: [] };
+    // Japanese/English also start with SenseVoice for fast text (~0.2 s), then the refine model replaces it in place
+    if (lang === 'ja') return { primary: 'sensevoice', refine: ['ja'] };
+    if (lang === 'en') return { primary: 'sensevoice', refine: ['en'] };
     if (lang === 'zh') return { primary: 'sensevoice', refine: ['zh'] };
     if (lang === 'auto') return { primary: 'sensevoice', refine: ['ja', 'zh', 'en'] };
     if (SV_LANGS.has(lang)) return { primary: 'sensevoice', refine: [] };

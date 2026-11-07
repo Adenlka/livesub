@@ -26,8 +26,6 @@ export const CAPTION_CSS = `
 .ls-partial{color:#bfe3ff}
 .ls-pending{opacity:.55}
 .ls-old{opacity:.7}
-.ls-low{opacity:.78}
-.ls-unsure{display:inline-block;font-size:.62em;font-weight:600;padding:0 .4em;margin-right:.4em;border-radius:.5em;border:1px solid #ffd27a;color:#ffd27a;vertical-align:.2em;font-style:normal}
 .ls-who{display:inline-block;font-size:.62em;font-weight:600;padding:0 .45em;margin-right:.45em;border-radius:.5em;color:#111;vertical-align:.15em;font-style:normal}
 .ls-status{font-size:13px;color:#ffd27a;background:rgba(0,0,0,.65);padding:3px 10px;border-radius:6px;max-width:100%}
 .ls-err{font-size:.6em;color:#ffb0b0}
@@ -183,7 +181,7 @@ export class CaptionView {
     const perLine = this.display === 'both' ? 1.38 * 0.74 + 1.38 + 0.15 : 1.38;
     boxEl.style.setProperty('--ls-minh', vis.length ? `calc(${(perLine * this.maxLines).toFixed(2)}em + 12px)` : '0');
     vis.forEach(([, it], idx) => {
-      const cls = 'ls-line' + (idx < vis.length - 1 ? ' ls-old' : '') + (it.final && it.unsure ? ' ls-low' : '');
+      const cls = 'ls-line' + (idx < vis.length - 1 ? ' ls-old' : '');
       const box = el('div', cls);
       // Speaker colors are only used on the A/B tag and the side bar; text stays white (multi-colored text is hard to read)
       const color = this.diarize && it.final && it.speaker != null ? SPEAKER_COLORS[it.speaker % SPEAKER_COLORS.length] : null;
@@ -215,8 +213,6 @@ export class CaptionView {
         const t = tag(); if (t) s.prepend(t);
         box.appendChild(s);
       }
-      // Possibly misheard sentence: add an "unclear?" mark so viewers don't take a wrong caption at face value
-      if (it.final && it.unsure) (box.firstChild ?? box).prepend(el('span', 'ls-unsure', t('听不清?')));
       if (it.err && !tr && this.display !== 'source') box.appendChild(el('span', 'ls-err', ' ⚠ ' + t('翻译失败')));
       boxEl.appendChild(box);
     });

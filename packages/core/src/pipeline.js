@@ -52,7 +52,7 @@ export class CaptionPipeline {
     this.asr.postMessage({
       type: 'init', assetBase: this.o.assetBase, localModelBase: this.o.localModelBase, modelHost: s.modelHost,
       engine: s.engine, customModel: s.customModel, device: s.device, sourceLang: s.sourceLang,
-      diarize: s.diarize, splitTurns: s.splitTurns, speakerThreshold: s.speakerThreshold, correctionsText: s.corrections, glossaryText: s.glossary, pageTitle: s.pageTitle ?? '', topic: s.topic ?? '', recheck: this.tm.translator.recheckOn,
+      diarize: s.diarize, splitTurns: s.splitTurns, speakerThreshold: s.speakerThreshold, correctionsText: s.corrections, glossaryText: s.glossary, pageTitle: s.pageTitle ?? '', topic: s.topic ?? '', recheck: this.tm.translator.recheckOn, twoPass: this.realtime,
     });
   }
 
@@ -125,6 +125,20 @@ export class CaptionPipeline {
       return;
     }
     if (m.type !== 'final') return;
+    if (m.draft) {
+      // First-pass (fast) result: show it as a caption immediately; the refined result replaces it in place and is translated afterwards
+      const base = keyOf(m.id);
+      const parts = (m.parts ?? []).filter(p => p.text);
+      parts.forEach((p, i) => {
+        const key = base + p.sub;
+        const cut = m.cut || i < parts.length - 1 && parts[i + 1].speaker === p.speaker;
+        const cont = cut || looksIncomplete(p.text, baseLang(p.lang ?? this.settings.sourceLang));
+        this.transcript.set(key, { t: p.startMs, end: p.endMs, text: p.text, speaker: p.speaker, conf: p.conf, translation: '', dur: p.dur, lang: p.lang ?? null, model: p.model ?? null, draft: true });
+        this.o.onCaption({ key, text: p.text, final: true, draft: true, cont, speaker: p.speaker, conf: p.conf, lang: p.lang ?? null, pendingTranslation: this.tm.enabled });
+      });
+      if (parts.length && !parts.some(p => p.sub === 0)) this.o.onCaption({ key: base, removed: true });
+      return;
+    }
     this.outstanding = Math.max(0, this.outstanding - 1);
     const base = keyOf(m.id);
     this.transcript.delete(base);

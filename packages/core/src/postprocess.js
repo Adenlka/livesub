@@ -60,7 +60,8 @@ export function cleanText(text, { lang = 'ja', engine = 'parakeet-ja', conf = 1,
   if (PUNCT_ONLY.test(t)) return '';
   // Very short and unsure ('あっ', 'うん' popping out of music/breathing; measured confidence 0.47-0.86, a real 'はい' is usually >= 0.95)
   const core = t.replace(/[\p{P}\p{S}\s]/gu, '');
-  if ([...core].length <= 2 && conf < 0.9) return '';
+  // but keep two-character content words like '武将' or '昆布': only kana interjections use the 0.9 bar, everything else 0.6
+  if ([...core].length <= 2 && (conf < 0.6 || (conf < 0.9 && /^[ぁ-んァ-ンーっッ嗯啊哦呃]+$/.test(core)))) return '';
   if (engine.startsWith('whisper') && isHallucination(t)) return '';
   if (MUSIC_ONLY.test(t)) return '';
   return corrections.length ? applyCorrections(t, corrections) : t;

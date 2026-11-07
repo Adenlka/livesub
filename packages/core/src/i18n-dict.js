@@ -130,6 +130,7 @@ export const DICT = {
   "开（不同颜色，试验中）": ["オン（色分け・試験中）", "On (colors, experimental)"],
   "开（会议推荐）": ["オン（会議におすすめ）", "On (recommended for meetings)"],
   "开（只把「听不清?」的句子发去重新听写）": ["オン（「聞き取り不確か」の文だけ再認識に送る）", "On (only \"unclear?\" lines are re-transcribed)"],
+  "开（只把没把握的句子发去重新听写）": ["オン（自信のない文だけ再認識に送る）", "On (only low-confidence lines are re-transcribed)"],
   "开（完整记录，可导出）": ["オン（すべて記録・書き出し可）", "On (full transcript, exportable)"],
   "开（按上下文改正同音字、人名）": ["オン（文脈から同音異義語や人名を修正）", "On (fixes homophones and names from context)"],
   "快速换人检测": ["話者交代の高速検出", "Fast speaker-change detection"],

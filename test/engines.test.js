@@ -112,5 +112,5 @@ test('默认完全离线、自动识别语言、精识别模型按需下载', ()
   assert.equal(DEFAULT_SETTINGS.sourceLang, 'auto');
   assert.equal(DEFAULT_SETTINGS.keepTranscript, false);
   assert.deepEqual(essentialModels({ ...DEFAULT_SETTINGS, diarize: true }), ['sensevoice', 'campplus']);
-  assert.deepEqual(essentialModels({ ...DEFAULT_SETTINGS, sourceLang: 'ja', diarize: false }), ['parakeet-ja']);
+  assert.deepEqual(essentialModels({ ...DEFAULT_SETTINGS, sourceLang: 'ja', diarize: false }), ['sensevoice', 'parakeet-ja']);
 });
