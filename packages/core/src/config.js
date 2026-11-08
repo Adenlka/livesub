@@ -4,8 +4,8 @@ export const SOURCE_LANGS = [
   { code: 'ja', name: '日语' },
   { code: 'zh', name: '中文' },
   { code: 'en', name: '英语' },
-  { code: 'auto', name: '自动（中日英混合，逐句识别）' },
   { code: 'ko', name: '韩语' },
+  { code: 'auto', name: '自动（中日英韩混合，逐句识别）' },
   { code: 'ms', name: '马来语（Whisper）' },
 ];
 
@@ -28,7 +28,7 @@ export const MODELS = {
     files: ['model.int8.onnx', 'tokens.txt'],
   },
   'sensevoice': {
-    name: 'SenseVoice 中英日（0.2B）', size: 239e6, repo: 'csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17',
+    name: 'SenseVoice 中英日韩（0.2B）', size: 239e6, repo: 'csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17',
     files: ['model.int8.onnx', 'tokens.txt'],
   },
   'zipformer-zh': {
@@ -38,6 +38,10 @@ export const MODELS = {
   'parakeet-en': {
     name: 'Parakeet-TDT 英语（0.6B）', size: 661e6, repo: 'csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8',
     files: ['encoder.int8.onnx', 'decoder.int8.onnx', 'joiner.int8.onnx', 'tokens.txt'],
+  },
+  'zipformer-ko': {
+    name: 'Zipformer 韩语（精识别）', size: 76e6, repo: 'k2-fsa/sherpa-onnx-zipformer-korean-2024-06-24',
+    files: ['encoder-epoch-99-avg-1.int8.onnx', 'decoder-epoch-99-avg-1.int8.onnx', 'joiner-epoch-99-avg-1.int8.onnx', 'tokens.txt'],
   },
   'campplus': {
     name: '说话人声纹 CAM++', size: 28e6, repo: 'csukuangfj/speaker-embedding-models',
@@ -75,7 +79,7 @@ export const WHISPER_MODELS = {
   'whisper-base': { id: 'onnx-community/whisper-base', dtype: { webgpu: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, wasm: 'q8' } },
 };
 const SV_LANGS = new Set(['zh', 'en', 'ja', 'ko', 'auto']);
-export const REFINE_MODEL = { ja: 'parakeet-ja', zh: 'zipformer-zh', en: 'parakeet-en' };
+export const REFINE_MODEL = { ja: 'parakeet-ja', zh: 'zipformer-zh', en: 'parakeet-en', ko: 'zipformer-ko' };
 /**
  * @returns {{primary:string, refine:string[]}}
  *     primary = main engine; refine = languages whose sentences are passed to that language's refine model (REFINE_MODEL)
@@ -86,7 +90,8 @@ export function resolveEngine(engine, lang) {
     if (lang === 'ja') return { primary: 'sensevoice', refine: ['ja'] };
     if (lang === 'en') return { primary: 'sensevoice', refine: ['en'] };
     if (lang === 'zh') return { primary: 'sensevoice', refine: ['zh'] };
-    if (lang === 'auto') return { primary: 'sensevoice', refine: ['ja', 'zh', 'en'] };
+    if (lang === 'ko') return { primary: 'sensevoice', refine: ['ko'] };
+    if (lang === 'auto') return { primary: 'sensevoice', refine: ['ja', 'zh', 'en', 'ko'] };
     if (SV_LANGS.has(lang)) return { primary: 'sensevoice', refine: [] };
     return { primary: 'whisper-small', refine: [] };
   }
@@ -127,7 +132,7 @@ export const DEFAULT_SETTINGS = {
   modelHost: 'hf',         // hf | mirror | custom URL
   vad: true,               // Silero VAD (energy threshold when off)
   translate: false,        // fully offline by default: no network, no API calls; translation only when the user turns it on
-  targetLang: ({ zh: 'zh-CN', ja: 'ja', en: 'en' })[uiLang()],
+  targetLang: ({ zh: 'zh-CN', ja: 'ja', en: 'en', ko: 'ko' })[uiLang()],
   reverseLang: '',         // two-way mode: sentences already in the target language are translated into this one ('' = don't)
   translator: 'google',    // none | google | openai
   openaiBaseUrl: 'https://api.deepseek.com/v1',

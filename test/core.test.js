@@ -106,11 +106,12 @@ test('config: 场景预设、引擎选择、下载地址', () => {
   assert.deepEqual(resolveEngine('auto', 'ja'), { primary: 'sensevoice', refine: ['ja'] });
   assert.deepEqual(resolveEngine('auto', 'zh'), { primary: 'sensevoice', refine: ['zh'] });
   assert.deepEqual(resolveEngine('auto', 'en'), { primary: 'sensevoice', refine: ['en'] });
-  assert.deepEqual(resolveEngine('auto', 'auto'), { primary: 'sensevoice', refine: ['ja', 'zh', 'en'] });
+  assert.deepEqual(resolveEngine('auto', 'auto'), { primary: 'sensevoice', refine: ['ja', 'zh', 'en', 'ko'] });
+  assert.deepEqual(resolveEngine('auto', 'ko'), { primary: 'sensevoice', refine: ['ko'] });
   assert.deepEqual(resolveEngine('auto', 'ms'), { primary: 'whisper-small', refine: [] });
   assert.deepEqual(resolveEngine('parakeet-ja', 'zh'), { primary: 'sensevoice', refine: ['zh'] });
   assert.deepEqual(resolveEngine('sensevoice', 'zh'), { primary: 'sensevoice', refine: [] });
-  assert.deepEqual(requiredModels({ engine: 'auto', sourceLang: 'auto', diarize: true }), ['sensevoice', 'parakeet-ja', 'zipformer-zh', 'parakeet-en', 'campplus']);
+  assert.deepEqual(requiredModels({ engine: 'auto', sourceLang: 'auto', diarize: true }), ['sensevoice', 'parakeet-ja', 'zipformer-zh', 'parakeet-en', 'zipformer-ko', 'campplus']);
   assert.deepEqual(requiredModels({ engine: 'auto', sourceLang: 'zh', diarize: false }), ['sensevoice', 'zipformer-zh']);
   assert.deepEqual(requiredModels({ engine: 'auto', sourceLang: 'en', diarize: false }), ['sensevoice', 'parakeet-en']);
   assert.deepEqual(requiredModels({ engine: 'sensevoice', sourceLang: 'auto', diarize: false }), ['sensevoice']);

@@ -5,7 +5,7 @@ import { getModelFile } from './model-store.js';
 import { ParakeetCtc } from './engines/parakeet.js';
 import { SenseVoice } from './engines/sensevoice.js';
 import { ParakeetTdt } from './engines/parakeet-tdt.js';
-import { ZipformerCtc } from './engines/zipformer.js';
+import { ZipformerCtc, ZipformerTransducer } from './engines/zipformer.js';
 import { transferPunct } from './merge-punct.js';
 import { enItn } from './en-itn.js';
 import { SpeakerEmbedder } from './engines/speaker-embed.js';
@@ -93,8 +93,8 @@ function setupOrt(m) {
   ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.max(1, want) : 1;
 }
 
-const modelName = (id) => ({ 'parakeet-ja': t('Parakeet 日语'), 'parakeet-en': t('Parakeet 英语'), 'zipformer-zh': t('Zipformer 中文'), sensevoice: 'SenseVoice' })[id] ?? id;
-const langName = (l) => t(l === 'zh' ? '中文' : l === 'ja' ? '日语' : '英语');
+const modelName = (id) => ({ 'parakeet-ja': t('Parakeet 日语'), 'parakeet-en': t('Parakeet 英语'), 'zipformer-zh': t('Zipformer 中文'), 'zipformer-ko': t('Zipformer 韩语'), sensevoice: 'SenseVoice' })[id] ?? id;
+const langName = (l) => t({ zh: '中文', ja: '日语', en: '英语', ko: '韩语' }[l] ?? l);
 
 // --- parent worker side: handle to the refine child worker ---
 function spawnRefiner(m, langs) {
@@ -206,10 +206,17 @@ function makeLoaders(m) {
       const z = await ZipformerCtc.create({ ort, model, tokens: text(tokens) });
       return { transcribe: (a) => z.transcribe(a), setHotwords: (w) => z.setHotwords(w, 2.5), release: () => z.session.release?.() };
     },
+    'zipformer-ko': async () => {
+      status('loading', t('准备韩语识别模型…'), { progress: 0 });
+      const [encoder, decoder, joiner, tokens] = await files('zipformer-ko', '韩语识别模型');
+      status('loading', t('加载韩语识别模型…'), { progress: 1 });
+      const z = await ZipformerTransducer.create({ ort, encoder, decoder, joiner, tokens: text(tokens) });
+      return { transcribe: (a) => z.transcribe(a), setHotwords: () => {}, release: () => Promise.all([z.enc, z.dec, z.join].map(x => x.release?.())) };
+    },
     'sensevoice': async () => {
-      status('loading', t('准备中英日识别模型…'), { progress: 0 });
-      const [[model, tokens], cmvn] = await Promise.all([files('sensevoice', '中英日识别模型'), fetch(m.assetBase + 'models/sensevoice-cmvn.json').then(r => r.json())]);
-      status('loading', t('加载中英日识别模型…'), { progress: 1 });
+      status('loading', t('准备中英日韩识别模型…'), { progress: 0 });
+      const [[model, tokens], cmvn] = await Promise.all([files('sensevoice', '中英日韩识别模型'), fetch(m.assetBase + 'models/sensevoice-cmvn.json').then(r => r.json())]);
+      status('loading', t('加载中英日韩识别模型…'), { progress: 1 });
       const sv = await SenseVoice.create({ ort, model, tokens: text(tokens), cmvn });
       return { transcribe: (a, lang) => sv.transcribe(a, lang), setHotwords: (w) => sv.setHotwords(w) };
     },
@@ -245,7 +252,7 @@ async function init(m) {
         // Auto language: LID is very unreliable on short utterances (interjections, 'なんだ？', 'ぎゃー'), often returning en/yue/ko.
         // When one language has dominated recently, short utterances and off-language results are decoded again in that language
         const dom = dominantLang();
-        if (cfg.sourceLang === 'auto' && dom && r.lang !== dom && (a.length < 16000 * 2.5 || !['ja', 'zh', 'en'].includes(r.lang))) {
+        if (cfg.sourceLang === 'auto' && dom && r.lang !== dom && (a.length < 16000 * 2.5 || !['ja', 'zh', 'en', 'ko'].includes(r.lang))) {
           const forced = await sv.transcribe(a, dom);
           if (forced.text) r = { ...forced, lang: dom };
         }
@@ -349,7 +356,7 @@ function finishText(r) {
   if (text && EN_FILLER.test(text) && jaZhContext() && (r.conf ?? 1) < 0.7) text = '';
   return text;
 }
-const jaZhContext = () => ['ja', 'zh'].includes(cfg.sourceLang) || (cfg.sourceLang === 'auto' && recentLangs.filter(l => l !== 'en').length > recentLangs.length / 2);
+const jaZhContext = () => ['ja', 'zh', 'ko'].includes(cfg.sourceLang) || (cfg.sourceLang === 'auto' && recentLangs.filter(l => l !== 'en').length > recentLangs.length / 2);
 
 function postFinal(job, out, draft = false) {
   post({ type: 'final', id: job.id, cut: !!job.cut, draft, parts: out.map(({ audio, r, p, ...o }) => o) }, draft ? [] : out.filter(o => o.pcm).map(o => o.pcm.buffer));

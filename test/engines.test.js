@@ -95,7 +95,7 @@ import { detectUiLang, setUiLang, t } from '../packages/core/src/i18n.js';
 import { DICT } from '../packages/core/src/i18n-dict.js';
 test('界面语言跟随系统：中/日/英，其他语言用英文', () => {
   assert.equal(detectUiLang('zh-TW'), 'zh'); assert.equal(detectUiLang('ja-JP'), 'ja');
-  assert.equal(detectUiLang('en-US'), 'en'); assert.equal(detectUiLang('fr-FR'), 'en'); assert.equal(detectUiLang('ko'), 'en');
+  assert.equal(detectUiLang('en-US'), 'en'); assert.equal(detectUiLang('fr-FR'), 'en'); assert.equal(detectUiLang('ko-KR'), 'ko');
   setUiLang('ja'); assert.equal(t('停止字幕'), '字幕を停止');
   setUiLang('en'); assert.equal(t('本扩展共占用 {mb} MB。', { mb: 5 }), 'Extension storage: 5 MB');
   setUiLang('zh'); assert.equal(t('停止字幕'), '停止字幕');
@@ -113,4 +113,10 @@ test('默认完全离线、自动识别语言、精识别模型按需下载', ()
   assert.equal(DEFAULT_SETTINGS.keepTranscript, false);
   assert.deepEqual(essentialModels({ ...DEFAULT_SETTINGS, diarize: true }), ['sensevoice', 'campplus']);
   assert.deepEqual(essentialModels({ ...DEFAULT_SETTINGS, sourceLang: 'ja', diarize: false }), ['sensevoice', 'parakeet-ja']);
+});
+
+test('韩语界面', () => {
+  setUiLang('ko'); assert.equal(t('停止字幕'), '자막 중지'); assert.equal(t('转写完成：{n} 条字幕', { n: 3 }), '변환 완료: 자막 3줄');
+  for (const v of Object.values(DICT)) assert.equal(v.length, 3);
+  setUiLang('zh');
 });

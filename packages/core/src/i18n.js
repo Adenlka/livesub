@@ -1,4 +1,4 @@
-// UI in three languages (zh/ja/en) following the OS language; any other OS language uses English
+// UI in four languages (zh/ja/en/ko) following the OS language; any other OS language uses English
 // Usage: t('Chinese source text', {vars}) -- the Chinese source text is the key; Japanese/English translations live in i18n-dict.js
 import { DICT } from './i18n-dict.js';
 
@@ -6,12 +6,13 @@ export function detectUiLang(locale) {
   const l = String(locale ?? (typeof navigator !== 'undefined' ? navigator.language : '') ?? '').toLowerCase();
   if (l.startsWith('zh')) return 'zh';
   if (l.startsWith('ja')) return 'ja';
+  if (l.startsWith('ko')) return 'ko';
   return 'en';
 }
 
 let LANG = detectUiLang();
 export const uiLang = () => LANG;
-export function setUiLang(l) { LANG = ['zh', 'ja', 'en'].includes(l) ? l : detectUiLang(l); }
+export function setUiLang(l) { LANG = ['zh', 'ja', 'en', 'ko'].includes(l) ? l : detectUiLang(l); }
 
 const fill = (s, vars) => vars ? s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] ?? m)) : s;
 
@@ -19,7 +20,7 @@ const fill = (s, vars) => vars ? s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] ?? m
 export function t(zh, vars) {
   if (LANG === 'zh' || zh == null) return fill(String(zh ?? ''), vars);
   const e = DICT[zh];
-  const s = e ? (LANG === 'ja' ? e[0] : e[1]) : zh;
+  const s = e ? (({ ja: e[0], en: e[1], ko: e[2] })[LANG] ?? e[1]) : zh;
   return fill(s, vars);
 }
 
