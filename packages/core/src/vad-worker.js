@@ -18,7 +18,7 @@ self.onmessage = async (e) => {
         const r = await fetch(m.assetBase + 'models/silero_vad.onnx');
         vad = await SileroVad.create({ ort, model: new Uint8Array(await r.arrayBuffer()) });
       } catch (err) {
-        post({ type: 'status', state: 'warn', message: t('人声检测模型加载失败，改用音量判断：') + err.message });
+        post({ type: 'status', state: 'warn', message: t('Voice detection model failed to load; using volume instead: ') + err.message });
       }
     }
     seg = new SpeechSegmenter({

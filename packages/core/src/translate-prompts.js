@@ -1,61 +1,63 @@
 // LLM prompts tailored per translation direction. Goal: subtitle-like output, nothing added, avoid common mistranslations
 import { baseLang } from './lang-text.js';
 
-const NAMES = { ja: '日语', zh: '中文', 'zh-CN': '简体中文', 'zh-TW': '繁体中文（台湾用语）', en: '英语', ko: '韩语', ms: '马来语' };
+const NAMES = { ja: 'Japanese', zh: 'Chinese', 'zh-CN': 'Simplified Chinese', 'zh-TW': 'Traditional Chinese (Taiwan usage)', en: 'English', ko: 'Korean', ms: 'Malay' };
 export const langLabel = (c) => NAMES[c] ?? NAMES[baseLang(c)] ?? c;
 
+/** Marker prepended to sources with low recognition confidence */
+export const UNSURE_MARK = '[POSSIBLY MISHEARD]';
+
 const COMMON = [
-  '只输出一行译文本身：不要解释、注释、引号、注音、原文或“译文：”之类的前缀。',
-  '忠实于原文，不补充原文没有的信息；原文是半句就只译这半句，不要自己补全。',
-  '原文来自语音识别，可能有同音字错误：按上下文推断正确意思来译。',
-  '译文要短、口语化、适合当字幕。语气词和口头禅译成对应的简短语气词。',
-  '意思准确第一：不确定的地方宁可译得含糊、保守，也不要译出确定但可能错误的意思；原文前标有【识别可能有误】时，只译能确定的部分，读不通的词不要硬猜成别的意思。',
-  '口语里常有语速快、连读、省略、倒装、说到一半改口：按说话人真正想表达的意思译，不要逐字直译。',
-  '不要加重或减轻原文的程度和语气（例如“害了他们”不能译成“杀了他们”，“有点”不能译成“非常”）；原文是半句或被截断时译文也停在那里，不要加任何说明。',
+  'Output only the translation, on one line: no explanations, notes, quotes, readings, source text or prefixes like "Translation:".',
+  'Stay faithful to the source and add nothing; if the source is half a sentence, translate only that half without completing it.',
+  'The source comes from speech recognition and may contain homophone errors: infer the intended meaning from context.',
+  'Keep translations short and colloquial, suitable as subtitles. Render fillers and interjections as short equivalents.',
+  `Accuracy of meaning comes first: where unsure, be vague and conservative rather than confidently wrong. When the source starts with ${UNSURE_MARK}, translate only what is certain and do not guess unclear words into something else.`,
+  'Spoken language is fast, slurred, elliptical, inverted and self-correcting: translate what the speaker actually means, not word by word.',
+  'Never intensify or soften the source (e.g. "harmed them" must not become "killed them", "a bit" must not become "very"); if the source is cut off, stop there too and add no comment.',
 ];
 
-// direction-specific rules
+// direction-specific rules (the CJK examples are part of the instructions)
 const RULES = {
   'ja>zh': [
-    '日语省略的主语、宾语按上下文补成自然的中文，但不要硬补“我/你”。',
-    '日中同形词别直译：勉強=学习，手紙=信，大丈夫=没事/没问题，怪我=受伤，迷惑=麻烦，留守=不在家，切手=邮票，娘=女儿，丈夫=结实，邪魔=打扰，心中=殉情，人間=人类，汽車=火车，新聞=报纸，愛人=情人，結構=相当/不用了，無理=不行/勉强，一生懸命=拼命/努力。',
-    '「〜さん」一般省略或译成“先生/小姐”；「先生」看语境译“老师/医生”；「お疲れ様」译“辛苦了”，「よろしくお願いします」按语境译“请多关照/拜托了”。',
-    '片假名外来语译成中文常用说法（パソコン=电脑，コンビニ=便利店），没有通用译法的专有名词保留原文。',
-    '「草」「w」「ｗｗｗ」是笑声，译“哈哈/笑死”；「えー」「あの」等填充词通常省略。',
-    '敬语不用逐字体现，用中文的礼貌语气表达即可。',
+    'Restore subjects/objects omitted in Japanese naturally in Chinese, but do not force in 我/你.',
+    'Do not translate Japanese-Chinese false friends literally: 勉強=学习, 手紙=信, 大丈夫=没事/没问题, 怪我=受伤, 迷惑=麻烦, 留守=不在家, 切手=邮票, 娘=女儿, 丈夫=结实, 邪魔=打扰, 心中=殉情, 人間=人类, 汽車=火车, 新聞=报纸, 愛人=情人, 結構=相当/不用了, 無理=不行/勉强, 一生懸命=拼命/努力.',
+    '「〜さん」 is usually dropped or rendered 先生/小姐; 「先生」 is 老师 or 医生 depending on context; 「お疲れ様」 = 辛苦了; 「よろしくお願いします」 = 请多关照/拜托了 depending on context.',
+    'Render katakana loanwords with the usual Chinese terms (パソコン=电脑, コンビニ=便利店); keep proper nouns without a standard translation as-is.',
+    '「草」「w」「ｗｗｗ」 are laughter: 哈哈/笑死. Fillers like 「えー」「あの」 are usually dropped.',
+    'Do not mirror keigo word by word; convey politeness with natural Chinese tone.',
   ],
   'zh>ja': [
-    '日语要自然：会议/课堂用「です・ます」体，直播/视频用自然的口语体。',
-    '只用日文汉字字形（発、気、図、駅…），绝对不要出现简体字（发、气、图、这、们…）。',
-    '中国人名、地名保留汉字（改为日文字形），不要转成片假名；中文网络用语译成意思相同的日语表达（哈哈=笑/ｗ）。',
-    '避开中日同形词误用：学习=勉強/学習，没问题=大丈夫，受伤=怪我，麻烦=迷惑/面倒，爱人(配偶)=妻/夫。',
+    'Write natural Japanese: です・ます for meetings/classes, natural casual speech for streams/videos.',
+    'Use Japanese kanji forms only (発, 気, 図, 駅...), never simplified Chinese characters (发, 气, 图, 这, 们...).',
+    'Keep Chinese personal and place names in kanji (Japanese forms), not katakana; render Chinese internet slang with Japanese equivalents (哈哈=笑/ｗ).',
+    'Avoid misusing false friends: 学习=勉強/学習, 没问题=大丈夫, 受伤=怪我, 麻烦=迷惑/面倒, 爱人 (spouse)=妻/夫.',
   ],
   'ja>en': [
     'Fill in omitted subjects naturally; translate honorifics into natural English politeness rather than keeping -san/-sama, unless it is part of a name people use.',
     'Laughter like 「草」「w」 → "lol"; fillers like 「えー」「あの」 can be dropped.',
   ],
-  'en>ja': ['会議/授業は「です・ます」体、配信/動画は自然な話し言葉で。カタカナ語は一般的なものだけ使う。'],
-  'zh>en': ['把中文的口语和成语意译成自然英文，不要逐字翻译。中文人名用拼音。'],
-  'en>zh': ['英文俚语和习语意译成自然的中文口语；人名、品牌、术语保留常用译名，没有通用译名就保留英文。'],
+  'en>ja': ['Use です・ます for meetings/classes and natural spoken Japanese for streams/videos. Only use common katakana loanwords.'],
+  'zh>en': ['Translate Chinese colloquialisms and idioms into natural English by meaning, not word by word. Use pinyin for Chinese names.'],
+  'en>zh': ['Render English slang and idioms as natural spoken Chinese; keep established translations for names, brands and terms, or keep the English when there is none.'],
+  'ko>zh': ['Express Korean honorific levels (-요/-습니다) with a natural degree of politeness in the target language; keep the usual spelling of Korean names.'],
+  'ko>ja': ['Express Korean honorific levels (-요/-습니다) with a natural degree of politeness in the target language; keep the usual spelling of Korean names.'],
+  'ko>en': ['Express Korean honorific levels (-요/-습니다) with a natural degree of politeness in the target language; keep the usual spelling of Korean names.'],
 };
 
 export function systemPrompt({ src, dst, scene, glossary = [], fix = false, title = '' }) {
   const s = baseLang(src), d = baseLang(dst);
-  const key = `${s}>${d}`;
-  const english = d === 'en' || (s === 'en' && d === 'ja');
-  const head = english
-    ? `You translate live ${scene ?? ''} subtitles from ${langLabel(src)} into ${langLabel(dst)}.`
-    : `你是${scene ? scene + '场景的' : ''}实时字幕翻译，把${langLabel(src)}翻译成${langLabel(dst)}。`;
-  const common = fix ? ['译文不要加解释、注释、注音或“译文：”之类的前缀。', ...COMMON.slice(1)] : COMMON;
-  const lines = [head, '规则：', ...common.map((r, i) => `${i + 1}. ${r}`)];
-  const extra = RULES[key] ?? [];
+  const head = `You translate live ${scene ? scene.toLowerCase() + ' ' : ''}subtitles from ${langLabel(src)} into ${langLabel(dst)}.`;
+  const common = fix ? ['Do not add explanations, notes, readings or prefixes like "Translation:" to the translation.', ...COMMON.slice(1)] : COMMON;
+  const lines = [head, 'Rules:', ...common.map((r, i) => `${i + 1}. ${r}`)];
+  const extra = RULES[`${s}>${d}`] ?? [];
   extra.forEach((r, i) => lines.push(`${common.length + i + 1}. ${r}`));
-  if (dst === 'zh-TW') lines.push('使用台湾繁体字和台湾用语（软件=軟體，视频=影片，网络=網路，信息=資訊）。');
-  if (glossary.length) lines.push('术语表（必须使用）：\n' + glossary.map(([a, b]) => `${a} → ${b || a}`).join('\n'));
-  if (title) lines.push(`背景：正在观看的节目/直播标题是「${title.slice(0, 120)}」，人名、作品名、游戏名按标题里的写法。`);
+  if (dst === 'zh-TW') lines.push('Use Traditional Chinese characters and Taiwan usage (软件=軟體, 视频=影片, 网络=網路, 信息=資訊).');
+  if (glossary.length) lines.push('Glossary (must be used):\n' + glossary.map(([a, b]) => `${a} → ${b || a}`).join('\n'));
+  if (title) lines.push(`Context: the show / stream being watched is titled "${title.slice(0, 120)}"; write names of people, works and games as they appear in the title.`);
   if (fix) lines.push(
-    '输出格式：只输出一个 JSON 对象 {"src": "...", "dst": "..."}，不要输出别的。',
-    `src = 改正语音识别错误后的${langLabel(src)}原文：只改明显听错的字词（同音/近音字、听错的人名和专有名词、术语表里的词、前后文能确定的词），不润色、不改语序、不补全、不删口头禅；没有把握就原样保留。`,
-    'dst = 按改正后的原文翻出的译文（遵守上面的规则）。');
+    'Output format: a single JSON object {"src": "...", "dst": "..."} and nothing else.',
+    `src = the ${langLabel(src)} source with speech-recognition errors fixed: only change clearly misheard words (homophones/near-homophones, misheard names and proper nouns, glossary terms, words the context makes certain). Do not polish, reorder, complete or remove fillers; when unsure, keep it as is.`,
+    'dst = the translation of the corrected source (following the rules above).');
   return lines.join('\n');
 }

@@ -9,7 +9,7 @@ import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** UI in four languages (zh/ja/en/ko) following the OS language, English otherwise. The Chinese source text is the key (same dictionary as the desktop version) */
+/** UI language follows the OS (zh/ja/en/ko, otherwise English). The English text is the key; same dictionary as the desktop app. */
 public final class I18n {
   private I18n() {}
   static String lang = detect(Locale.getDefault().getLanguage());
@@ -31,7 +31,7 @@ public final class I18n {
       while ((n = in.read(b)) > 0) bo.write(b, 0, n);
       in.close();
       loadJson(bo.toString("UTF-8"));
-    } catch (Exception e) { /* no dictionary: show the Chinese text */ }
+    } catch (Exception e) { /* no dictionary: show English */ }
   }
   public static void loadJson(String s) throws Exception {
     JSONObject o = new JSONObject(s);
@@ -39,10 +39,10 @@ public final class I18n {
     while (it.hasNext()) { String k = it.next(); JSONArray a = o.getJSONArray(k); DICT.put(k, new String[]{a.getString(0), a.getString(1), a.getString(2)}); }
   }
 
-  /** t("下载{label} {a} / {b} MB", "label", x, "a", y, "b", z) */
-  public static String t(String zh, String... vars) {
-    String s = zh;
-    if (!"zh".equals(lang)) { String[] e = DICT.get(zh); if (e != null) s = "ja".equals(lang) ? e[0] : "ko".equals(lang) ? e[2] : e[1]; }
+  /** t("Downloading {label} {a} / {b} MB", "label", x, "a", y, "b", z) */
+  public static String t(String en, String... vars) {
+    String s = en;
+    if (!"en".equals(lang)) { String[] e = DICT.get(en); if (e != null) s = "zh".equals(lang) ? e[0] : "ja".equals(lang) ? e[1] : e[2]; }
     for (int i = 0; i + 1 < vars.length; i += 2) s = s.replace("{" + vars[i] + "}", vars[i + 1]);
     return s;
   }

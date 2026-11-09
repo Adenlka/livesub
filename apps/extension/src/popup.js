@@ -24,9 +24,9 @@ function setStatus(text, cls = '', progress = null) {
 }
 function renderState() {
   const onHere = state.running && state.tabId === tab?.id;
-  $('toggle').textContent = t(state.running ? (onHere ? '停止字幕' : '停止（正在其他标签页运行）') : '为当前标签页开启字幕');
+  $('toggle').textContent = t(state.running ? (onHere ? 'Stop subtitles' : 'Stop (running in another tab)') : 'Start subtitles for this tab');
   $('toggle').classList.toggle('on', state.running);
-  if (!state.running) setStatus(state.statusState === 'error' ? state.status : '未开始', state.statusState === 'error' ? 'error' : '');
+  if (!state.running) setStatus(state.statusState === 'error' ? state.status : 'Not started', state.statusState === 'error' ? 'error' : '');
   else if (state.status) setStatus(state.status, state.statusState);
 }
 
@@ -35,11 +35,11 @@ async function refreshCacheInfo() {
   const all = Object.keys(MODELS);
   const cached = Object.fromEntries(await Promise.all(all.map(async id => [id, await isModelCached(id)])));
   let usage = '';
-  try { const e = await navigator.storage.estimate(); usage = t('本扩展共占用 {mb} MB。', { mb: (e.usage / 1e6).toFixed(0) }); } catch {}
-  $('cacheInfo').textContent = all.map(id => `${t(MODELS[id].name)}: ${t(cached[id] ? '已下载' : '未下载')}${need.includes(id) ? t('（当前设置需要）') : ''}`).join(' / ') + ' · ' + usage;
+  try { const e = await navigator.storage.estimate(); usage = t('Extension storage: {mb} MB', { mb: (e.usage / 1e6).toFixed(0) }); } catch {}
+  $('cacheInfo').textContent = all.map(id => `${t(MODELS[id].name)}: ${t(cached[id] ? '已下载' : '未下载')}${need.includes(id) ? t(' (needed)') : ''}`).join(' / ') + ' · ' + usage;
   const missing = essentialModels(settings).filter(id => !cached[id]);
   const mb = missing.reduce((a, id) => a + MODELS[id].size, 0) / 1e6;
-  $('firstRun').textContent = t('首次使用需要下载约 {mb}MB 模型（自动在后台完成，之后缓存在本机）。各语言的精识别模型会在第一次听到该语言时再下载。', { mb: mb.toFixed(0) });
+  $('firstRun').textContent = t('First use downloads about {mb}MB of models automatically (cached afterwards). Each language\'s high-accuracy model is downloaded the first time that language is heard.', { mb: mb.toFixed(0) });
   $('firstRun').classList.toggle('hide', !(missing.length && !state.running));
 }
 
@@ -50,10 +50,10 @@ $('toggle').onclick = async () => {
     else {
       const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
       const r = await chrome.runtime.sendMessage({ type: 'start', tabId: tab.id, streamId });
-      if (!r?.ok) setStatus(r?.error ?? '启动失败', 'error');
+      if (!r?.ok) setStatus(r?.error ?? 'Failed to start', 'error');
     }
   } catch (e) {
-    setStatus(/Cannot capture|chrome:\/\/|Extension has not been invoked/.test(e.message) ? '这个页面不能采集声音（浏览器内部页面）。请在普通网页上使用。' : e.message, 'error');
+    setStatus(/Cannot capture|chrome:\/\/|Extension has not been invoked/.test(e.message) ? 'Audio can\'t be captured on this page (browser internal page). Use it on a normal web page.' : e.message, 'error');
   }
   state = await chrome.runtime.sendMessage({ type: 'getState' });
   if (state.running || !$('status').classList.contains('error')) renderState();
@@ -79,17 +79,17 @@ $('panel').onclick = async () => {
 };
 $('resetSpk').onclick = () => chrome.runtime.sendMessage({ target: 'offscreen', type: 'resetSpeakers' }).catch(() => {});
 $('unload').onclick = async () => {
-  if (state.running) { setStatus('先停止字幕再释放', 'warn'); return; }
+  if (state.running) { setStatus('Stop subtitles before freeing memory', 'warn'); return; }
   await chrome.runtime.sendMessage({ type: 'unloadModel' });
-  setStatus('已释放内存', 'ready');
+  setStatus('Memory freed', 'ready');
 };
 $('clearCache').onclick = async () => {
-  if (state.running) { setStatus('先停止字幕再删除模型', 'warn'); return; }
-  if (!confirm(t('删除已下载的识别模型？下次使用会重新下载。'))) return;
+  if (state.running) { setStatus('Stop subtitles before deleting models', 'warn'); return; }
+  if (!confirm(t('Delete downloaded models? They will be downloaded again next time.'))) return;
   await chrome.runtime.sendMessage({ type: 'unloadModel' });
   await deleteCachedModels();
   refreshCacheInfo();
-  setStatus('已删除下载的模型', 'ready');
+  setStatus('Downloaded models deleted', 'ready');
 };
 
 renderSettingsForm($('form'), settings, async (s, key) => {

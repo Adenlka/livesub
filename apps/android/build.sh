@@ -14,6 +14,7 @@ mkdir -p build/lib/arm64-v8a
 cp $T/jniLibs/arm64-v8a/libsherpa-onnx-jni.so $T/jniLibs/arm64-v8a/libonnxruntime.so build/lib/arm64-v8a/
 (cd build && zip -q -r unsigned.apk lib)
 python3 $T/zipalign.py build/unsigned.apk build/aligned.apk
-[ -f tools/release.ks ] || keytool -genkeypair -keystore tools/release.ks -storepass livesub -keypass livesub -alias livesub -keyalg RSA -keysize 2048 -validity 20000 -dname "CN=LiveSub" 2>&1 | grep -v "Picked up"
-java -jar $T/apktool-node/lib/apksigner.jar sign --ks tools/release.ks --ks-pass pass:livesub --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --out build/LiveSub.apk build/aligned.apk 2>&1 | grep -v "Picked up" || true
+KS=${LIVESUB_KEYSTORE:-tools/release.ks}; KP=${LIVESUB_KS_PASS:-livesub}
+[ -f "$KS" ] || keytool -genkeypair -keystore "$KS" -storepass "$KP" -keypass "$KP" -alias livesub -keyalg RSA -keysize 2048 -validity 20000 -dname "CN=LiveSub" 2>&1 | grep -v "Picked up"
+java -jar $T/apktool-node/lib/apksigner.jar sign --ks "$KS" --ks-pass pass:"$KP" --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --out build/LiveSub.apk build/aligned.apk 2>&1 | grep -v "Picked up" || true
 ls -la build/LiveSub.apk

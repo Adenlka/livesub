@@ -54,4 +54,4 @@ export class SpeakerClusterer {
   reset() { this.speakers = []; this.last = null; }
 }
 
-export const speakerName = (i) => i == null ? '' : t('说话人') + (['en', 'ko'].includes(uiLang()) ? ' ' : '') + String.fromCharCode(65 + (i % 26));
+export const speakerName = (i) => i == null ? '' : t('Speaker') + (['en', 'ko'].includes(uiLang()) ? ' ' : '') + String.fromCharCode(65 + (i % 26));

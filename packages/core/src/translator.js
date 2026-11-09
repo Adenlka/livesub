@@ -5,7 +5,7 @@
 import { TARGET_LANGS, langName, SCENES } from './config.js';
 import { looksIncomplete, stripFillers, parsePairs } from './postprocess.js';
 import { checkTarget, normalizePunct, baseLang, guessLang } from './lang-text.js';
-import { systemPrompt } from './translate-prompts.js';
+import { systemPrompt, UNSURE_MARK } from './translate-prompts.js';
 import { t as tr } from './i18n.js';
 import { NOT_JA, countIn } from './zh-script.js';
 
@@ -39,7 +39,7 @@ export function sanitizeTranslation(out, src, targetLang) {
 export function parseFixed(raw) {
   const t = String(raw ?? '').trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
   const m = /\{[\s\S]*\}/.exec(t);
-  if (m) { try { const j = JSON.parse(m[0]); if (typeof j.dst === 'string') return { tr: j.dst, fix: typeof j.src === 'string' ? j.src.replace(/^【识别可能有误】/, '').trim() : null }; } catch {} }
+  if (m) { try { const j = JSON.parse(m[0]); if (typeof j.dst === 'string') return { tr: j.dst, fix: typeof j.src === 'string' ? j.src.replace(/^(\[POSSIBLY MISHEARD\]|【识别可能有误】)\s*/, '').trim() : null }; } catch {} }
   return { tr: t, fix: null };
 }
 const lev = (a, b) => { a = [...a]; b = [...b]; let p = Array.from({ length: b.length + 1 }, (_, i) => i); for (let i = 1; i <= a.length; i++) { const c = [i]; for (let j = 1; j <= b.length; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; } return p[b.length]; };
@@ -114,7 +114,7 @@ export class Translator {
   async recheck(pcm, lang, asrText) {
     const s = this.s;
     const L = baseLang(lang) || 'ja';
-    const name = { ja: '日语', zh: '中文', en: '英语', ko: '韩语' }[L] ?? '原语言';
+    const name = { ja: 'Japanese', zh: 'Chinese', en: 'English', ko: 'Korean' }[L] ?? 'the original language';
     const wait = this.nextSlot - Date.now();
     if (wait > 4000) return null; // rate limited and can't get a slot: use the local result rather than delay the subtitle
     if (wait > 0) await new Promise(r => setTimeout(r, wait));
@@ -129,8 +129,8 @@ export class Translator {
           // Gemini Flash 'thinks' for 10+ seconds by default; a transcription only needs 'low' (measured 2-3 s)
           ...(/gemini-[\d.]+-flash(?!-lite)/.test(s.recheckModel || s.openaiModel) ? { reasoning_effort: 'low' } : {}),
           messages: [
-            { role: 'system', content: `你是语音转写员。用户会给你一段${name}语音，以及本机语音识别的结果（可能有听错的字词）。以音频为准，输出这段语音准确的逐字转写（${name}原文，不要翻译）。规则：只输出转写文字，不加任何说明；口头禅、语气词可以省略；听不清的地方沿用本机结果；不要补充音频里没有的内容。` },
-            { role: 'user', content: [{ type: 'text', text: `本机识别结果：「${asrText}」` }, { type: 'input_audio', input_audio: { data: wavBase64(pcm), format: 'wav' } }] },
+            { role: 'system', content: `You are a transcriber. The user gives you ${name} speech audio together with an on-device speech recognition result (which may contain misheard words). Trust the audio and output an accurate verbatim transcript in ${name} (do not translate). Rules: output only the transcript, with no comments; fillers may be omitted; where the audio is unclear keep the on-device result; never add anything that is not in the audio.` },
+            { role: 'user', content: [{ type: 'text', text: `On-device recognition result: "${asrText}"` }, { type: 'input_audio', input_audio: { data: wavBase64(pcm), format: 'wav' } }] },
           ],
         }),
       });
@@ -165,14 +165,14 @@ export class Translator {
           const { tr, fix } = p === 'openai' && this.fixOn ? parseFixed(raw) : { tr: raw, fix: null };
           const fixed = fix ? acceptFix(fix, clean, baseLang(src)) : null;
           const out = sanitizeTranslation(tr, fixed ?? clean, dst);
-          if (out == null) { lastErr = tr('译文校验未通过'); break; }
+          if (out == null) { lastErr = tr('Translation failed validation'); break; }
           const hk = `${baseLang(src)}>${dst}`;
           const h = this.history.get(hk) ?? []; h.push({ src: fixed ?? clean, dst: out }); if (h.length > 4) h.shift(); this.history.set(hk, h);
           this.cache.set(key, out);
           if (this.cache.size > 500) this.cache.delete(this.cache.keys().next().value);
           return { text: out, provider: p, target: dst, fixed: fixed && fixed !== clean ? fixed : null };
         } catch (e) {
-          lastErr = e.name === 'AbortError' ? tr('超时') : e.message;
+          lastErr = e.name === 'AbortError' ? tr('Timed out') : e.message;
           if (/API Key|401|403/.test(lastErr)) break;
           if (e.rate && attempt === 0) {
             // rate limited: for the next 2 minutes space requests 6.5 s apart (free tier ~10/min) and retry this one after one interval
@@ -196,7 +196,7 @@ export class Translator {
     const to = withTimeout(6000);
     try {
       const r = await this.fetch(url, { signal: to.signal });
-      if (!r.ok) throw new Error('Google 翻译 HTTP ' + r.status);
+      if (!r.ok) throw new Error('Google Translate HTTP ' + r.status);
       const data = await r.json();
       return (data[0] ?? []).map(x => x[0]).join('').trim();
     } finally { to.done(); }
@@ -204,13 +204,13 @@ export class Translator {
 
   async _openai(text, src, dst, unsure = false) {
     const s = this.s;
-    if (!s.openaiApiKey && !/localhost|127\.0\.0\.1/.test(s.openaiBaseUrl)) throw new Error(tr('未填写 API Key'));
+    if (!s.openaiApiKey && !/localhost|127\.0\.0\.1/.test(s.openaiBaseUrl)) throw new Error(tr('API key not set'));
     const fix = this.fixOn;
     const messages = [{ role: 'system', content: systemPrompt({ src, dst, scene: SCENES[s.scene]?.name, glossary: this._glossary(), fix, title: [s.topic, s.pageTitle].filter(Boolean).join(' / ') }) }];
     for (const h of (this.history.get(`${baseLang(src)}>${dst}`) ?? []).slice(-3))
       messages.push({ role: 'user', content: h.src }, { role: 'assistant', content: fix ? JSON.stringify({ src: h.src, dst: h.dst }) : h.dst });
     // low recognition confidence: warn the model that the source may be misheard; vague is better than confidently wrong
-    messages.push({ role: 'user', content: unsure ? `【识别可能有误】${text}` : text });
+    messages.push({ role: 'user', content: unsure ? `${UNSURE_MARK} ${text}` : text });
     const to = withTimeout(12000);
     try {
       const r = await this.fetch(s.openaiBaseUrl.replace(/\/+$/, '') + '/chat/completions', {
@@ -219,7 +219,7 @@ export class Translator {
         body: JSON.stringify({ model: s.openaiModel, temperature: 0.2, max_tokens: 300, messages }),
       });
       if (this.rateLimited) this.nextSlot = Date.now() + 6500;
-      if (!r.ok) { const e = new Error('大模型接口 HTTP ' + r.status + ' ' + (await r.text()).slice(0, 120)); e.rate = r.status === 429; throw e; }
+      if (!r.ok) { const e = new Error('LLM API HTTP ' + r.status + ' ' + (await r.text()).slice(0, 120)); e.rate = r.status === 429; throw e; }
       const data = await r.json();
       return (data.choices?.[0]?.message?.content ?? '').trim();
     } finally { to.done(); }
@@ -227,14 +227,14 @@ export class Translator {
 
   async summarize(transcript) {
     const s = this.s;
-    if (s.translator !== 'openai' || !s.openaiApiKey) throw new Error(tr('总结需要在翻译设置里配置大模型 API'));
+    if (s.translator !== 'openai' || !s.openaiApiKey) throw new Error(tr('Summaries need an LLM API in translation settings'));
     const r = await this.fetch(s.openaiBaseUrl.replace(/\/+$/, '') + '/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.openaiApiKey}` },
       body: JSON.stringify({
         model: s.openaiModel, temperature: 0.3, max_tokens: 1500,
         messages: [
-          { role: 'system', content: `你是会议/课堂记录助手。根据下面的语音识别字幕（可能有识别错误），用${langName(s.targetLang)}写一份简洁的总结：要点（分条）、决定事项/结论、待办（如有，注明负责人）。不要编造字幕里没有的内容。` },
+          { role: 'system', content: `You take notes for meetings and classes. From the speech-recognition transcript below (which may contain recognition errors), write a concise summary in ${langName(s.targetLang)}: key points (bulleted), decisions/conclusions, and action items (with owners, if any). Do not invent anything that is not in the transcript.` },
           { role: 'user', content: transcript.slice(-60000) },
         ],
       }),

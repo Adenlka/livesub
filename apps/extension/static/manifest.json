@@ -1,20 +1,54 @@
 {
   "manifest_version": 3,
-  "name": "LiveSub 实时字幕",
+  "name": "__MSG_name__",
   "short_name": "LiveSub",
   "version": "0.4.3",
-  "description": "为网页里的视频、直播、网课和网络会议实时生成字幕并翻译（中日英韩，日语优先，本地识别，可区分说话人）。",
+  "description": "__MSG_description__",
   "minimum_chrome_version": "116",
-  "permissions": ["tabCapture", "offscreen", "storage", "scripting", "activeTab", "sidePanel", "unlimitedStorage"],
-  "host_permissions": ["<all_urls>"],
-  "background": { "service_worker": "background.js", "type": "module" },
-  "action": { "default_popup": "popup.html", "default_title": "LiveSub 实时字幕" },
-  "side_panel": { "default_path": "sidepanel.html" },
-  "commands": {
-    "toggle-captions": { "suggested_key": { "default": "Alt+Shift+S" }, "description": "开始 / 停止当前标签页的字幕" }
+  "permissions": [
+    "tabCapture",
+    "offscreen",
+    "storage",
+    "scripting",
+    "activeTab",
+    "sidePanel",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
   },
-  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
-  "content_security_policy": { "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'" },
-  "cross_origin_embedder_policy": { "value": "require-corp" },
-  "cross_origin_opener_policy": { "value": "same-origin" }
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "__MSG_name__"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "commands": {
+    "toggle-captions": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "__MSG_toggle__"
+    }
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "cross_origin_embedder_policy": {
+    "value": "require-corp"
+  },
+  "cross_origin_opener_policy": {
+    "value": "same-origin"
+  },
+  "default_locale": "en"
 }

@@ -3,7 +3,7 @@
   "productName": "LiveSub",
   "version": "0.4.3",
   "private": true,
-  "description": "LiveSub 实时字幕（Windows 桌面版）",
+  "description": "LiveSub live subtitles (Windows desktop)",
   "main": "dist/main.js",
   "scripts": {
     "start": "electron .",

@@ -22,11 +22,11 @@ public final class Models {
 
   public static final Map<String, Spec> ALL = new LinkedHashMap<String, Spec>();
   static {
-    add(new Spec("sensevoice", "SenseVoice 中英日韩（0.2B）", "csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17", 239000000L, "model.int8.onnx", "tokens.txt"));
-    add(new Spec("parakeet-ja", "Parakeet 日语（0.6B）", "csukuangfj/sherpa-onnx-nemo-parakeet-tdt_ctc-0.6b-ja-35000-int8", 656000000L, "model.int8.onnx", "tokens.txt"));
-    add(new Spec("zipformer-zh", "Zipformer 中文（精识别）", "csukuangfj/sherpa-onnx-zipformer-ctc-zh-int8-2025-07-03", 367000000L, "model.int8.onnx", "tokens.txt"));
-    add(new Spec("parakeet-en", "Parakeet-TDT 英语（0.6B）", "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8", 661000000L, "encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt"));
-    add(new Spec("zipformer-ko", "Zipformer 韩语（精识别）", "k2-fsa/sherpa-onnx-zipformer-korean-2024-06-24", 76000000L, "encoder-epoch-99-avg-1.int8.onnx", "decoder-epoch-99-avg-1.int8.onnx", "joiner-epoch-99-avg-1.int8.onnx", "tokens.txt"));
+    add(new Spec("sensevoice", "SenseVoice zh/en/ja/ko (0.2B)", "csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17", 239000000L, "model.int8.onnx", "tokens.txt"));
+    add(new Spec("parakeet-ja", "Parakeet Japanese (0.6B)", "csukuangfj/sherpa-onnx-nemo-parakeet-tdt_ctc-0.6b-ja-35000-int8", 656000000L, "model.int8.onnx", "tokens.txt"));
+    add(new Spec("zipformer-zh", "Zipformer Chinese (high accuracy)", "csukuangfj/sherpa-onnx-zipformer-ctc-zh-int8-2025-07-03", 367000000L, "model.int8.onnx", "tokens.txt"));
+    add(new Spec("parakeet-en", "Parakeet-TDT English (0.6B)", "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8", 661000000L, "encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt"));
+    add(new Spec("zipformer-ko", "Zipformer Korean (high accuracy)", "k2-fsa/sherpa-onnx-zipformer-korean-2024-06-24", 76000000L, "encoder-epoch-99-avg-1.int8.onnx", "decoder-epoch-99-avg-1.int8.onnx", "joiner-epoch-99-avg-1.int8.onnx", "tokens.txt"));
   }
   static void add(Spec s) { ALL.put(s.id, s); }
 

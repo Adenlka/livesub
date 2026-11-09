@@ -6,7 +6,7 @@ import { decodeBbpe } from '../packages/core/src/engines/zipformer.js';
 import { parseTokens } from '../packages/core/src/engines/ctc.js';
 import { BBPE_TABLE } from '../packages/core/src/engines/bbpe-table.js';
 
-test('中文：把 SenseVoice 的标点/阿拉伯数字移植到 Zipformer 结果上', () => {
+test('Chinese: transfer SenseVoice punctuation/digits onto the Zipformer result', () => {
   assert.equal(transferPunct('接下来跟大家分享的是三月二十九日至四月四日', '接下来跟大家分享的是3月29日至4月4日。'), '接下来跟大家分享的是3月29日至4月4日。');
   // characters follow Zipformer ('影评' is not overwritten by SenseVoice's '影片'), punctuation comes from SenseVoice
   assert.equal(transferPunct('欢迎收看我的影评', '欢迎收看我的影片。'), '欢迎收看我的影评。');
@@ -23,7 +23,7 @@ test('中文：把 SenseVoice 的标点/阿拉伯数字移植到 Zipformer 结�
   assert.equal(transferPunct('工人有没有进行裁员', ''), '工人有没有进行裁员');
 });
 
-test('英语数字规范化', () => {
+test('English number normalization', () => {
   assert.equal(enItn('we grew seven percent in Q four, so we are on a strong trajectory'), 'we grew 7% in Q4, so we are on a strong trajectory');
   assert.equal(enItn('the high expectation for twenty twenty two.'), 'the high expectation for 2022.');
   assert.equal(enItn('You have to remember the sixty million which we saw in twenty twenty.'), 'You have to remember the 60 million which we saw in 2020.');
@@ -35,7 +35,7 @@ test('英语数字规范化', () => {
   assert.equal(enItn('It was in two thousand and eight.'), 'It was in 2008.');
 });
 
-test('字节级 BPE 解码、制表符分隔的词表', () => {
+test('byte-level BPE decoding, tab-separated vocabulary', () => {
   const rev = []; for (const [k, v] of Object.entries(BBPE_TABLE)) if (rev[v] === undefined) rev[v] = k;
   const enc = (s) => [...new TextEncoder().encode(s)].map(b => rev[b]).join('');
   const t1 = enc('你好'), t2 = enc('世界');
@@ -46,7 +46,7 @@ test('字节级 BPE 解码、制表符分隔的词表', () => {
 });
 
 import { parseFixed, acceptFix } from '../packages/core/src/translator.js';
-test('AI 校对：解析 JSON、只接受小改动', () => {
+test('AI proofreading: parse JSON, accept only small edits', () => {
   assert.deepEqual(parseFixed('{"src":"今日は寒いですね","dst":"今天好冷啊"}'), { tr: '今天好冷啊', fix: '今日は寒いですね' });
   assert.deepEqual(parseFixed('```json\n{"src": "a", "dst": "b"}\n```'), { tr: 'b', fix: 'a' });
   assert.deepEqual(parseFixed('今天好冷啊'), { tr: '今天好冷啊', fix: null });
@@ -56,18 +56,18 @@ test('AI 校对：解析 JSON、只接受小改动', () => {
 });
 
 import { Translator } from '../packages/core/src/translator.js';
-test('识别不确定的句子：提醒大模型、缓存分开', async () => {
+test('low-confidence sentences: the LLM is warned, cached separately', async () => {
   const sent = [];
   const fakeFetch = async (url, init) => { sent.push(JSON.parse(init.body)); return { ok: true, json: async () => ({ choices: [{ message: { content: '{"src":"今日は寒い","dst":"今天很冷"}' } }] }) }; };
   const t = new Translator({ translate: true, translator: 'openai', openaiApiKey: 'k', openaiBaseUrl: 'http://x', openaiModel: 'm', targetLang: 'zh-CN', sourceLang: 'ja' }, fakeFetch);
   const r = await t.translate('今日は寒い', { srcLang: 'ja', unsure: true });
   assert.equal(r.text, '今天很冷');
-  assert.match(sent[0].messages.at(-1).content, /^【识别可能有误】/);
-  assert.match(sent[0].messages[0].content, /宁可译得含糊/);
+  assert.match(sent[0].messages.at(-1).content, /^\[POSSIBLY MISHEARD\]/);
+  assert.match(sent[0].messages[0].content, /vague and conservative/);
 });
 
 import { TranslationManager } from '../packages/core/src/translator.js';
-test('限流（429）时：等待并把排队的句子合并成一次请求', async () => {
+test('rate limited (429): wait and merge queued sentences into one request', async () => {
   let n = 0; const bodies = [];
   const fakeFetch = async (url, init) => {
     n++; bodies.push(JSON.parse(init.body).messages.at(-1).content);
@@ -86,27 +86,27 @@ test('限流（429）时：等待并把排队的句子合并成一次请求', as
   assert.equal(n, 3);
 });
 
-test('AI 校对不许引入别的语言的字形', () => {
+test('AI proofreading may not introduce another language\'s script', () => {
   assert.equal(acceptFix('処罚する罪', '処罰する罪', 'ja'), null);
   assert.equal(acceptFix('処罰する罪', '処罰すると罪', 'ja'), '処罰する罪');
 });
 
 import { detectUiLang, setUiLang, t } from '../packages/core/src/i18n.js';
 import { DICT } from '../packages/core/src/i18n-dict.js';
-test('界面语言跟随系统：中/日/英，其他语言用英文', () => {
+test('UI language follows the OS: zh/ja/en/ko, otherwise English', () => {
   assert.equal(detectUiLang('zh-TW'), 'zh'); assert.equal(detectUiLang('ja-JP'), 'ja');
   assert.equal(detectUiLang('en-US'), 'en'); assert.equal(detectUiLang('fr-FR'), 'en'); assert.equal(detectUiLang('ko-KR'), 'ko');
-  setUiLang('ja'); assert.equal(t('停止字幕'), '字幕を停止');
-  setUiLang('en'); assert.equal(t('本扩展共占用 {mb} MB。', { mb: 5 }), 'Extension storage: 5 MB');
-  setUiLang('zh'); assert.equal(t('停止字幕'), '停止字幕');
+  setUiLang('ja'); assert.equal(t('Stop subtitles'), '字幕を停止');
+  setUiLang('en'); assert.equal(t('Extension storage: {mb} MB', { mb: 5 }), 'Extension storage: 5 MB');
+  setUiLang('zh'); assert.equal(t('Stop subtitles'), '停止字幕');
   for (const [k, v] of Object.entries(DICT)) {
     const vars = (s) => (s.match(/\{\w+\}/g) ?? []).sort().join();
-    assert.equal(vars(v[0]), vars(k), k); assert.equal(vars(v[1]), vars(k), k);
+    assert.equal(vars(v[0]), vars(k), k); assert.equal(vars(v[1]), vars(k), k); assert.equal(vars(v[2]), vars(k), k);
   }
 });
 
 import { DEFAULT_SETTINGS, essentialModels } from '../packages/core/src/config.js';
-test('默认完全离线、自动识别语言、精识别模型按需下载', () => {
+test('defaults: fully offline, auto language detection, refine models downloaded on demand', () => {
   assert.equal(DEFAULT_SETTINGS.translate, false);
   assert.equal(DEFAULT_SETTINGS.recheck, false);
   assert.equal(DEFAULT_SETTINGS.sourceLang, 'auto');
@@ -115,8 +115,8 @@ test('默认完全离线、自动识别语言、精识别模型按需下载', ()
   assert.deepEqual(essentialModels({ ...DEFAULT_SETTINGS, sourceLang: 'ja', diarize: false }), ['sensevoice', 'parakeet-ja']);
 });
 
-test('韩语界面', () => {
-  setUiLang('ko'); assert.equal(t('停止字幕'), '자막 중지'); assert.equal(t('转写完成：{n} 条字幕', { n: 3 }), '변환 완료: 자막 3줄');
+test('Korean UI', () => {
+  setUiLang('ko'); assert.equal(t('Stop subtitles'), '자막 중지'); assert.equal(t('Done: {n} subtitles', { n: 3 }), '변환 완료: 자막 3줄');
   for (const v of Object.values(DICT)) assert.equal(v.length, 3);
   setUiLang('zh');
 });

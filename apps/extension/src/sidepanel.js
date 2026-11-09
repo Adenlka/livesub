@@ -52,20 +52,20 @@ chrome.runtime.onMessage.addListener((m) => {
   if (m.type === 'caption') {
     if (m.removed) { items.get(m.key)?.el.remove(); items.delete(m.key); return; }
     if (m.final) upsert(m.key, { text: m.text, speaker: m.speaker, conf: m.conf, ...(m.translation !== undefined ? { translation: m.translation } : {}), merged: m.merged });
-  } else if (m.type === 'status') $('state').textContent = m.state === 'ready' ? t('运行中') : t(m.message);
+  } else if (m.type === 'status') $('state').textContent = m.state === 'ready' ? t('Running') : t(m.message);
 });
 
 async function load() {
   const r = await toOff({ type: 'getTranscript' }).catch(() => null);
   if (!r?.rows?.length) return;
   r.rows.filter(row => row.text).forEach((row) => upsert(row.key, row));
-  $('state').textContent = t(r.running ? '运行中' : '已停止');
+  $('state').textContent = t(r.running ? 'Running' : 'Stopped');
 }
 
 async function exportAs(kind) {
   const r = await toOff({ type: 'export' }).catch(() => null);
   const content = r?.[kind];
-  if (!content) { $('state').textContent = t('还没有字幕内容'); return; }
+  if (!content) { $('state').textContent = t('No subtitles yet'); return; }
   const url = URL.createObjectURL(new Blob([kind === 'vtt' ? content : '﻿' + content], { type: 'text/plain;charset=utf-8' }));
   const a = document.createElement('a');
   const d = new Date(), p2 = (n) => String(n).padStart(2, '0');
@@ -73,11 +73,11 @@ async function exportAs(kind) {
   a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 document.querySelectorAll('[data-exp]').forEach(b => b.onclick = () => exportAs(b.dataset.exp));
-$('copy').onclick = async () => { const r = await toOff({ type: 'export' }).catch(() => null); if (r?.txt) { await navigator.clipboard.writeText(r.txt); $('state').textContent = t('已复制'); } };
-$('clear').onclick = async () => { if (!confirm(t('清空字幕记录？'))) return; await toOff({ type: 'clearTranscript' }).catch(() => {}); items.clear(); $('log').innerHTML = `<div class="empty">${t('已清空')}</div>`; };
+$('copy').onclick = async () => { const r = await toOff({ type: 'export' }).catch(() => null); if (r?.txt) { await navigator.clipboard.writeText(r.txt); $('state').textContent = t('Copied'); } };
+$('clear').onclick = async () => { if (!confirm(t('Clear the transcript?'))) return; await toOff({ type: 'clearTranscript' }).catch(() => {}); items.clear(); $('log').innerHTML = `<div class="empty">${t('Cleared')}</div>`; };
 $('sum').onclick = async () => {
-  const box = $('summary'); box.classList.remove('hide'); box.textContent = t('正在总结…');
+  const box = $('summary'); box.classList.remove('hide'); box.textContent = t('Summarizing…');
   const r = await toOff({ type: 'summarize' }).catch(e => ({ error: e.message }));
-  box.textContent = r?.error ? '⚠ ' + r.error : r?.text || t('（没有内容）');
+  box.textContent = r?.error ? '⚠ ' + r.error : r?.text || t('(nothing)');
 };
 load();

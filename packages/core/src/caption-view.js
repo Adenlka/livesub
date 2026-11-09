@@ -213,7 +213,7 @@ export class CaptionView {
         const t = tag(); if (t) s.prepend(t);
         box.appendChild(s);
       }
-      if (it.err && !tr && this.display !== 'source') box.appendChild(el('span', 'ls-err', ' ⚠ ' + t('翻译失败')));
+      if (it.err && !tr && this.display !== 'source') box.appendChild(el('span', 'ls-err', ' ⚠ ' + t('translation failed')));
       boxEl.appendChild(box);
     });
     frag.appendChild(boxEl);

@@ -92,7 +92,7 @@ export class SpeechSegmenter {
       return;
     }
     if (lenMs >= this.maxSegmentMs) { this._forceCut(); return; }
-    if (this.sinceLastPartial >= this.partialMs && lenMs >= 700) {
+    if (this.sinceLastPartial >= this.partialMs && lenMs >= 500) {
       this.sinceLastPartial = 0;
       this.onPartial({ id: this.curId, audio: concat(this.frames), startMs: this.startFrame * FRAME_MS });
     }

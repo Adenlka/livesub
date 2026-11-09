@@ -1,4 +1,4 @@
-import { setUiLang as __ui } from '../packages/core/src/i18n.js'; __ui('zh');
+import { setUiLang as __ui } from '../packages/core/src/i18n.js'; __ui('en');
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { guessLang, normalizePunct, subtitleStyle, checkTarget } from '../packages/core/src/lang-text.js';
@@ -16,7 +16,7 @@ test('guessLang', () => {
   assert.equal(guessLang('yesterday was 星期一'), 'zh');
 });
 
-test('标点规范：中/日全角，英文半角', () => {
+test('punctuation: full-width for zh/ja, half-width for English', () => {
   assert.equal(normalizePunct('你好,今天怎么样?', 'zh-CN'), '你好，今天怎么样？');
   assert.equal(normalizePunct('こんにちは,元気?', 'ja'), 'こんにちは、元気？');
   assert.equal(normalizePunct('好的。 明天 见', 'zh-CN'), '好的。明天见');
@@ -24,14 +24,14 @@ test('标点规范：中/日全角，英文半角', () => {
   assert.equal(normalizePunct('He said「yes」。', 'en'), 'He said "yes".');
 });
 
-test('字幕风格：句末去句号，问号保留', () => {
+test('subtitle style: drop final period, keep question marks', () => {
   assert.equal(subtitleStyle('今天下雨了。', 'zh'), '今天下雨了');
   assert.equal(subtitleStyle('本当ですか？', 'ja'), '本当ですか？');
   assert.equal(subtitleStyle('It rained.', 'en'), 'It rained.');
   assert.equal(subtitleStyle('好的，明天见。', 'zh', { commaToSpace: true }), '好的 明天见');
 });
 
-test('目标语言校验：日文译文必须有假名、不能有简体字；繁简自动修正', () => {
+test('target check: Japanese output needs kana and no simplified characters; traditional/simplified auto-fix', () => {
   assert.equal(checkTarget('今天天气很好', '今日はいい天気', 'ja'), null);          // Chinese pretending to be Japanese
   assert.equal(checkTarget('这个问题们发现了', 'x', 'ja'), null);
   assert.equal(checkTarget('今日はいい天気です', '今天天气很好', 'ja'), '今日はいい天気です');
@@ -42,7 +42,7 @@ test('目标语言校验：日文译文必须有假名、不能有简体字；�
   assert.equal(toSimplified('頭髮與發展'), '头发与发展');
 });
 
-test('双向模式：按句子语种决定方向', () => {
+test('two-way mode: direction chosen from each sentence\'s language', () => {
   const s = { ...DEFAULT_SETTINGS, translate: true, targetLang: "zh-CN", targetLang: 'zh-CN', reverseLang: 'ja' };
   assert.equal(pickTarget('ja', s), 'zh-CN');
   assert.equal(pickTarget('zh', s), 'ja');
@@ -51,18 +51,18 @@ test('双向模式：按句子语种决定方向', () => {
   assert.equal(pickTarget('en', { ...s, targetLang: 'en', reverseLang: 'zh-CN' }), 'zh-CN');
 });
 
-test('提示词按方向定制', () => {
+test('prompts are tailored per direction', () => {
   const p1 = systemPrompt({ src: 'ja', dst: 'zh-CN' });
-  assert.match(p1, /勉強=学习/); assert.match(p1, /简体中文/);
+  assert.match(p1, /勉強=学习/); assert.match(p1, /Simplified Chinese/);
   const p2 = systemPrompt({ src: 'zh', dst: 'ja' });
-  assert.match(p2, /日文汉字字形/); assert.match(p2, /です・ます/);
+  assert.match(p2, /kanji forms only/); assert.match(p2, /です・ます/);
   const p3 = systemPrompt({ src: 'ja', dst: 'en' });
   assert.match(p3, /^You translate/); assert.match(p3, /lol/);
-  assert.match(systemPrompt({ src: 'en', dst: 'zh-TW' }), /台湾/);
+  assert.match(systemPrompt({ src: 'en', dst: 'zh-TW' }), /Taiwan/);
   assert.match(systemPrompt({ src: 'ja', dst: 'zh-CN', glossary: [['ぺこら', '佩克拉']] }), /ぺこら → 佩克拉/);
 });
 
-test('翻译：中→日 大模型给出中文 → 拒绝并退回 Google；结果标点规范', async () => {
+test('translation zh->ja: LLM answering in Chinese is rejected and falls back to Google; punctuation normalized', async () => {
   const fetch = async (url, init) => {
     if (url.includes('googleapis')) return { ok: true, json: async () => [[['明日は雨が降るでしょう,傘を持ってね']]] };
     return { ok: true, json: async () => ({ choices: [{ message: { content: '明天会下雨，记得带伞' } }] }) };
@@ -73,7 +73,7 @@ test('翻译：中→日 大模型给出中文 → 拒绝并退回 Google；结�
   assert.equal(r.text, '明日は雨が降るでしょう、傘を持ってね');
 });
 
-test('翻译管理器：同语言跳过；双向时中文句翻成日文；不同语种不合并', async () => {
+test('translation manager: same language skipped; two-way translates Chinese into Japanese; different languages not merged', async () => {
   const seen = [];
   const fetch = async (url) => { const q = new URL(url); seen.push(`${q.searchParams.get('sl')}>${q.searchParams.get('tl')}:${q.searchParams.get('q')}`); return { ok: true, json: async () => [[['T']]] }; };
   const out = [];
@@ -89,7 +89,7 @@ test('翻译管理器：同语言跳过；双向时中文句翻成日文；不�
   assert.match(seen.at(-1), /^zh>ja:/);
 });
 
-test('长句只显示末尾，从标点处截断', () => {
+test('long lines show only the tail, cut at punctuation', () => {
   const s = '気象庁は雪や路面の凍結による交通への影響、暴風雪や高波に警戒するとともに、雪崩や屋根からの落雪にも十分注意するよう呼びかけています';
   const t = tailText(s, 30);
   assert.ok(t.startsWith('…'));

@@ -23,13 +23,13 @@ async function downloadTo(urls, dest, onProgress, sizeHint) {
         if (loaded - last > 2e6) { last = loaded; onProgress(loaded, Math.max(total, loaded)); }
       }
       await new Promise((res, rej) => out.end(err => err ? rej(err) : res()));
-      if (total && loaded < total * 0.99) throw new Error('下载不完整');
+      if (total && loaded < total * 0.99) throw new Error('incomplete download');
       fs.renameSync(part, dest);
       onProgress(loaded, loaded);
       return;
     } catch (e) {
       try { fs.rmSync(part, { force: true }); } catch {}
-      lastErr = new Error(`${new URL(url).host}：${e.message}`);
+      lastErr = new Error(`${new URL(url).host}: ${e.message}`);
     }
   }
   throw lastErr;

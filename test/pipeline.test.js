@@ -1,4 +1,4 @@
-import { setUiLang as __ui } from '../packages/core/src/i18n.js'; __ui('zh');
+import { setUiLang as __ui } from '../packages/core/src/i18n.js'; __ui('en');
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CaptionPipeline } from '../packages/core/src/pipeline.js';
@@ -34,7 +34,7 @@ class FakeAsr {
   terminate() {}
 }
 
-test('pipeline: 切段 → 识别（含拆人）→ 合并翻译 → 字幕事件 → 导出', async () => {
+test('pipeline: segmentation -> recognition (with speaker split) -> merged translation -> caption events -> export', async () => {
   const caps = [];
   const fetch = async (url) => {
     const q = decodeURIComponent(url.split('q=')[1]);
@@ -55,8 +55,8 @@ test('pipeline: 切段 → 识别（含拆人）→ 合并翻译 → 字幕事�
   assert.ok(caps.some(c => c.key === 10 && c.merged), '前半句标记为已合并');
   assert.ok(caps.some(c => c.key === 30 && c.removed), '空结果撤销');
   const srt = p.exportSRT();
-  assert.match(srt, /^1\n00:00:00,000 --> 00:00:02,000\n\[说话人A\] 気象庁は警戒するとともに。\n\n2\n00:00:02,000 --> 00:00:03,000\n/);
-  assert.match(srt, /\[说话人B\] はい、わかりました。\n好的，明白了。/);
-  assert.match(p.exportText(), /说话人B：はい、わかりました。\n    → 好的，明白了。/);
+  assert.match(srt, /^1\n00:00:00,000 --> 00:00:02,000\n\[Speaker A\] 気象庁は警戒するとともに。\n\n2\n00:00:02,000 --> 00:00:03,000\n/);
+  assert.match(srt, /\[Speaker B\] はい、わかりました。\n好的，明白了。/);
+  assert.match(p.exportText(), /Speaker B: はい、わかりました。\n    → 好的，明白了。/);
   assert.match(p.exportVTT(), /^WEBVTT\n\n00:00:00\.000 -->/);
 });

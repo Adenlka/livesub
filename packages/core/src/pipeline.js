@@ -40,8 +40,8 @@ export class CaptionPipeline {
     this.asr = o.createWorker('asr');
     this.vad.onmessage = (e) => this._onVad(e.data);
     this.asr.onmessage = (e) => this._onAsr(e.data);
-    const onErr = (w) => (e) => this._status({ state: 'error', message: t('{w}出错：', { w }) + (e.message ?? e) });
-    this.vad.onerror = onErr(t('切段模块')); this.asr.onerror = onErr(t('识别模块'));
+    const onErr = (w) => (e) => this._status({ state: 'error', message: t('{w} error: ', { w }) + (e.message ?? e) });
+    this.vad.onerror = onErr(t('Segmenter')); this.asr.onerror = onErr(t('Recognizer'));
   }
 
   _status(s) { this.o.onStatus?.(s); }
@@ -187,14 +187,14 @@ export class CaptionPipeline {
       this.o.onCaption({ key, ...(rec ? { text: rec.text, speaker: rec.speaker, conf: rec.conf, lang: rec.lang, unsure: rec.unsure && !meta.fixed } : {}), final: true,
         translation: last ? text : '', merged: !last, tlang: meta.target ?? null, skipped: meta.skipped, translationError: last ? meta.error : undefined });
     });
-    if (meta.error) this._status({ state: 'warn', message: t('翻译失败：') + t(meta.error) });
+    if (meta.error) this._status({ state: 'warn', message: t('Translation failed: ') + t(meta.error) });
   }
 
   // --- export ---
   rows() { return [...this.transcript.entries()].sort((a, b) => a[0] - b[0]).map(e => e[1]).filter(r => r.text); }
 
   exportText() {
-    return this.rows().map(r => `[${fmt(r.t)}]${r.speaker != null ? ' ' + speakerName(r.speaker) + '：' : ' '}${r.text}${r.translation ? '\n    → ' + r.translation : ''}`).join('\n');
+    return this.rows().map(r => `[${fmt(r.t)}]${r.speaker != null ? ' ' + speakerName(r.speaker) + ': ' : ' '}${r.text}${r.translation ? '\n    → ' + r.translation : ''}`).join('\n');
   }
 
   exportSRT() { return this._subs(true); }

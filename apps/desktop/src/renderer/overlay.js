@@ -21,7 +21,7 @@ window.livesub.onOverlay((m) => {
     case 'clear': view.clear(); view.setStatus(''); break;
     case 'lock':
       document.body.classList.toggle('unlocked', !m.locked);
-      if (!m.locked && !view.items.size) view.setStatus('字幕会显示在这里');
+      if (!m.locked && !view.items.size) view.setStatus('Subtitles appear here');
       else if (m.locked) view.setStatus('');
       break;
   }

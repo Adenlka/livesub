@@ -21,7 +21,7 @@ async function hasOffscreen() {
 }
 async function ensureOffscreen() {
   if (await hasOffscreen()) return;
-  await chrome.offscreen.createDocument({ url: OFFSCREEN, reasons: ['USER_MEDIA', 'WORKERS'], justification: '采集标签页音频并在本地运行语音识别模型' });
+  await chrome.offscreen.createDocument({ url: OFFSCREEN, reasons: ['USER_MEDIA', 'WORKERS'], justification: 'Capture tab audio and run speech recognition locally' });
 }
 const toOffscreen = (m) => chrome.runtime.sendMessage({ target: 'offscreen', ...m });
 
@@ -31,7 +31,7 @@ async function injectOverlay(tabId) {
     const settings = await loadSettings();
     await chrome.tabs.sendMessage(tabId, { type: 'settings', settings }).catch(() => {});
   } catch {
-    throw new Error(t('这个页面不能显示字幕（浏览器内部页面或扩展商店）。换到普通网页再试。'));
+    throw new Error(t('Subtitles can\'t be shown on this page (browser internal page or extension store). Try a normal web page.'));
   }
 }
 
@@ -43,7 +43,7 @@ async function start(tabId, streamId) {
   const settings = await loadSettings();
   // Tab title (video/stream name): streamer and game names become recognition hotwords and LLM translation context
   settings.pageTitle = await chrome.tabs.get(tabId).then(t => t.title ?? '').catch(() => '');
-  await setState({ tabId, running: true, status: t('启动中…'), statusState: 'loading' });
+  await setState({ tabId, running: true, status: t('Starting…'), statusState: 'loading' });
   const r = await toOffscreen({ type: 'start', streamId, settings });
   if (r && r.ok === false) throw new Error(r.error);
 }

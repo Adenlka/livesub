@@ -66,8 +66,8 @@ public class CaptionService extends Service {
     Intent stop = new Intent(this, CaptionService.class).setAction(ACTION_STOP);
     PendingIntent ps = PendingIntent.getService(this, 1, stop, PendingIntent.FLAG_IMMUTABLE);
     PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
-    Notification n = new Notification.Builder(this, "live").setSmallIcon(R.drawable.ic_stat).setContentTitle(I18n.t("LiveSub 实时字幕")).setContentText(I18n.t("运行中"))
-      .setContentIntent(open).addAction(new Notification.Action.Builder(null, I18n.t("停止字幕"), ps).build()).setOngoing(true).build();
+    Notification n = new Notification.Builder(this, "live").setSmallIcon(R.drawable.ic_stat).setContentTitle(I18n.t("LiveSub live subtitles")).setContentText(I18n.t("Running"))
+      .setContentIntent(open).addAction(new Notification.Action.Builder(null, I18n.t("Stop subtitles"), ps).build()).setOngoing(true).build();
     if (Build.VERSION.SDK_INT >= 29) startForeground(7, n, system ? ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION | ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE : ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
     else startForeground(7, n);
   }
@@ -113,7 +113,7 @@ public class CaptionService extends Service {
           if (!downloading.add(id)) return;
           new Thread(new Runnable() { public void run() {
             try { download(id); for (String l : new String[]{"ja", "zh", "en", "ko"}) if (id.equals(Models.refineFor(l))) asr.modelReady(l); }
-            catch (Exception e) { status("warn", I18n.t("模型下载失败：") + e.getMessage()); }
+            catch (Exception e) { status("warn", I18n.t("Model download failed: ") + e.getMessage()); }
             finally { downloading.remove(id); }
           } }).start();
         }
@@ -127,16 +127,16 @@ public class CaptionService extends Service {
       seg.silenceMs = prefs.silenceMs;
       asr.start();
       startAudio();
-    } catch (Exception e) { status("error", I18n.t("启动失败：") + e.getMessage()); }
+    } catch (Exception e) { status("error", I18n.t("Failed to start: ") + e.getMessage()); }
   }
 
   void download(String id) throws Exception {
     final String name = I18n.t(Models.ALL.get(id).name);
-    status("loading", I18n.t("下载{label} {a} / {b} MB", "label", name, "a", "0", "b", String.valueOf(Models.ALL.get(id).size / 1000000)));
+    status("loading", I18n.t("Downloading {label} {a} / {b} MB", "label", name, "a", "0", "b", String.valueOf(Models.ALL.get(id).size / 1000000)));
     Models.download(getFilesDir(), id, prefs.modelHost, new Models.Progress() {
-      public void on(String mid, long done, long total) { status("loading", I18n.t("下载{label} {a} / {b} MB", "label", name, "a", String.valueOf(done / 1000000), "b", String.valueOf(total / 1000000))); }
+      public void on(String mid, long done, long total) { status("loading", I18n.t("Downloading {label} {a} / {b} MB", "label", name, "a", String.valueOf(done / 1000000), "b", String.valueOf(total / 1000000))); }
     });
-    status("ready", I18n.t("{m} 已下载，接下来会自动切换", "m", name));
+    status("ready", I18n.t("{m} downloaded; switching automatically", "m", name));
   }
 
   void startAudio() {
@@ -151,10 +151,10 @@ public class CaptionService extends Service {
       } else {
         rec = new AudioRecord.Builder().setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION).setAudioFormat(fmt).setBufferSizeInBytes(buf).build();
       }
-    } catch (SecurityException e) { status("error", I18n.t("没有获得录音权限")); return; }
-    if (rec.getState() != AudioRecord.STATE_INITIALIZED) { status("error", I18n.t("没有拿到系统声音")); return; }
+    } catch (SecurityException e) { status("error", I18n.t("Recording permission denied")); return; }
+    if (rec.getState() != AudioRecord.STATE_INITIALIZED) { status("error", I18n.t("Couldn't capture system audio")); return; }
     rec.startRecording(); capturing = true;
-    status("ready", I18n.t("识别中"));
+    status("ready", I18n.t("Listening"));
     audioT = new Thread(new Runnable() { public void run() {
       short[] b = new short[1600];
       while (capturing) {

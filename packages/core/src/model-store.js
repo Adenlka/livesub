@@ -60,7 +60,7 @@ async function download(urls, onProgress, sizeHint = 0) {
       for (const c of chunks) { out.set(c, o); o += c.length; }
       onProgress?.(loaded, loaded);
       return out;
-    } catch (e) { lastErr = new Error(`${url.split('/').slice(2, 3)} ${t('下载失败：')}${e.message}`); }
+    } catch (e) { lastErr = new Error(`${url.split('/').slice(2, 3)} ${t('Download failed: ')}${e.message}`); }
   }
-  throw lastErr ?? new Error(t('没有可用的下载地址'));
+  throw lastErr ?? new Error(t('No download source available'));
 }

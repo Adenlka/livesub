@@ -1,4 +1,4 @@
-import { setUiLang as __ui } from '../packages/core/src/i18n.js'; __ui('zh');
+import { setUiLang as __ui } from '../packages/core/src/i18n.js'; __ui('en');
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Translator, TranslationManager, sanitizeTranslation } from '../packages/core/src/translator.js';
@@ -10,7 +10,7 @@ const google = (map) => async (url) => {
 };
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-test('sanitize: 去掉标签/引号，拒绝解释、未翻译、语言不对', () => {
+test('sanitize: strip labels/quotes, reject explanations, untranslated or wrong-language output', () => {
   assert.equal(sanitizeTranslation('译文：「今天下雨」', '今日は雨', 'zh-CN'), '今天下雨');
   assert.equal(sanitizeTranslation('**你好**\n（这是一句问候）', 'こんにちは', 'zh-CN'), '你好');
   assert.equal(sanitizeTranslation('今日は雨です', '今日は雨です', 'zh-CN'), null);           // not translated
@@ -20,7 +20,7 @@ test('sanitize: 去掉标签/引号，拒绝解释、未翻译、语言不对', 
   assert.equal(sanitizeTranslation("It's raining today.", '今日は雨', 'en'), "It's raining today.");
 });
 
-test('translator: Google 解析 + 术语表预替换 + 缓存', async () => {
+test('translator: Google parsing + glossary pre-replacement + cache', async () => {
   let calls = 0;
   const t = new Translator({ ...DEFAULT_SETTINGS, translate: true, targetLang: "zh-CN", glossary: 'ぺこら=佩克拉' }, async (url) => { calls++; return google({ '佩克拉の配信': '佩克拉的直播' })(url); });
   assert.equal((await t.translate('ぺこらの配信')).text, '佩克拉的直播');
@@ -28,7 +28,7 @@ test('translator: Google 解析 + 术语表预替换 + 缓存', async () => {
   assert.equal(calls, 1);
 });
 
-test('translator: 大模型输出可疑 → 自动退回 Google；上下文以对话形式给出', async () => {
+test('translator: suspicious LLM output falls back to Google; context is given as a conversation', async () => {
   const bodies = [];
   const fetch = async (url, init) => {
     if (url.includes('googleapis')) return google({ 'こんにちは': '你好' })(url);
@@ -39,7 +39,7 @@ test('translator: 大模型输出可疑 → 自动退回 Google；上下文以�
   const r = await t.translate('こんにちは');
   assert.equal(r.text, '你好');
   assert.equal(r.provider, 'google');
-  assert.match(bodies[0].messages[0].content, /只输出一行译文|不要加解释/);
+  assert.match(bodies[0].messages[0].content, /Output only the translation|Do not add explanations/);
 
   const good = new Translator({ ...DEFAULT_SETTINGS, translate: true, targetLang: "zh-CN", translator: 'openai', openaiApiKey: 'k', glossary: 'ぺこら=佩克拉', sourceLang: 'ja' }, async (url, init) => {
     bodies.push(JSON.parse(init.body));
@@ -52,7 +52,7 @@ test('translator: 大模型输出可疑 → 自动退回 Google；上下文以�
   assert.deepEqual(last.slice(1).map(m => m.role), ['user', 'assistant', 'user']);
 });
 
-test('translator: 网络错误重试一次；缺 Key 不重试并给出原因', async () => {
+test('translator: retry once on network errors; missing key falls back with a reason', async () => {
   let n = 0;
   const t = new Translator({ ...DEFAULT_SETTINGS, translate: true, targetLang: 'zh-CN' }, async (url) => { if (n++ === 0) throw new Error('net'); return google({ 'テスト': '测试' })(url); });
   assert.equal((await t.translate('テスト')).text, '测试');
@@ -61,7 +61,7 @@ test('translator: 网络错误重试一次；缺 Key 不重试并给出原因', 
   assert.equal(r.text, '测试', '缺 key 时退回 google');
 });
 
-test('manager: 半句等待合并后整句翻译，译文挂在最后一段', async () => {
+test('manager: a half-sentence waits and is translated with the rest, translation on the last part', async () => {
   const results = [];
   const fetch = google({ '気象庁は警戒するとともに雪崩にも注意を呼びかけています。': '气象厅呼吁警惕并注意雪崩。' });
   const m = new TranslationManager({ settings: { ...DEFAULT_SETTINGS, translate: true, targetLang: "zh-CN", translateHoldMs: 200 }, fetch, onResult: (k, t, meta) => results.push({ k, t, meta }) });
@@ -75,7 +75,7 @@ test('manager: 半句等待合并后整句翻译，译文挂在最后一段', as
   assert.equal(results[0].meta.merged, true);
 });
 
-test('manager: 等待超时单独翻译；换人不合并；低置信度不翻译', async () => {
+test('manager: translated alone after the wait times out; no merge across speakers; low confidence not translated', async () => {
   const results = [];
   const m = new TranslationManager({ settings: { ...DEFAULT_SETTINGS, translate: true, targetLang: "zh-CN", translateHoldMs: 100 }, fetch: google({}), onResult: (k, t, meta) => results.push({ k, t, meta }) });
   m.add({ key: 1, text: '昨日は友達と', speaker: 0 });

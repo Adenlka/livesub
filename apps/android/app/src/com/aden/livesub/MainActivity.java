@@ -106,90 +106,90 @@ public class MainActivity extends Activity {
   static int idx(String[] a, String v) { for (int i = 0; i < a.length; i++) if (a[i].equals(v)) return i; return 0; }
 
   void build() {
-    TextView title = label(t("LiveSub 实时字幕"), 22, true); col.addView(title);
+    TextView title = label(t("LiveSub live subtitles"), 22, true); col.addView(title);
     toggle = new Button(this); toggle.setTextSize(17);
     toggle.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (CaptionService.running) CaptionService.stop(MainActivity.this); else start(); } });
     col.addView(toggle);
     status = label("", 13, false); col.addView(status);
-    overlayBtn = new Button(this); overlayBtn.setText(t("允许显示在其他应用上层"));
+    overlayBtn = new Button(this); overlayBtn.setText(t("Allow display over other apps"));
     overlayBtn.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))); } });
     col.addView(overlayBtn);
 
-    section("识别");
+    section("Recognition");
     final String[] srcV = {"system", "mic"};
-    spinner(col, "声音来源", new String[]{"系统声音（其他 App 正在播放的声音）", "麦克风"}, idx(srcV, p.source), new OnPick() { public void pick(int i) { p.source = srcV[i]; } });
-    hint(col, "有些 App（例如部分音乐/视频 App）禁止录制它们的声音，那时不会出字幕。");
+    spinner(col, "Audio source", new String[]{"System audio (sound playing in other apps)", "Microphone"}, idx(srcV, p.source), new OnPick() { public void pick(int i) { p.source = srcV[i]; } });
+    hint(col, "Some apps (certain music/video apps) block audio capture; no subtitles will appear for them.");
     final String[] langV = {"auto", "ja", "zh", "en", "ko"};
-    spinner(col, "说的语言", new String[]{"自动（中日英韩混合，逐句识别）", "日语", "中文", "英语", "韩语"}, idx(langV, p.sourceLang), new OnPick() { public void pick(int i) { p.sourceLang = langV[i]; } });
+    spinner(col, "Spoken language", new String[]{"Auto (zh/ja/en/ko, detected per sentence)", "Japanese", "Chinese", "English", "Korean"}, idx(langV, p.sourceLang), new OnPick() { public void pick(int i) { p.sourceLang = langV[i]; } });
     final String[] engV = {"auto", "sensevoice"};
-    spinner(col, "识别引擎", new String[]{"自动（推荐，各语言用最准的模型）", "轻量：只用 SenseVoice（约 240MB，准确率略低）"}, idx(engV, p.engine), new OnPick() { public void pick(int i) { p.engine = engV[i]; } });
+    spinner(col, "Recognition engine", new String[]{"Auto (recommended, best model per language)", "Light: SenseVoice only (~240MB, slightly less accurate)"}, idx(engV, p.engine), new OnPick() { public void pick(int i) { p.engine = engV[i]; } });
 
-    section("翻译");
+    section("Translation");
     translateBox = new LinearLayout(this); translateBox.setOrientation(LinearLayout.VERTICAL);
-    sw(col, "翻译", p.translate, new OnCheck() { public void check(boolean b) { p.translate = b; translateBox.setVisibility(b ? View.VISIBLE : View.GONE); } });
+    sw(col, "Translation", p.translate, new OnCheck() { public void check(boolean b) { p.translate = b; translateBox.setVisibility(b ? View.VISIBLE : View.GONE); } });
     col.addView(translateBox); translateBox.setVisibility(p.translate ? View.VISIBLE : View.GONE);
     final String[] tgtV = {"zh-CN", "zh-TW", "ja", "en", "ko"};
-    spinner(translateBox, "翻成", new String[]{"简体中文", "繁體中文", "日本語", "English", "한국어"}, idx(tgtV, p.target), new OnPick() { public void pick(int i) { p.target = tgtV[i]; } });
+    spinner(translateBox, "Translate to", new String[]{"Simplified Chinese", "Traditional Chinese", "日本語", "English", "한국어"}, idx(tgtV, p.target), new OnPick() { public void pick(int i) { p.target = tgtV[i]; } });
     final String[] trV = {"google", "openai"};
     apiBox = new LinearLayout(this); apiBox.setOrientation(LinearLayout.VERTICAL);
-    spinner(translateBox, "翻译引擎", new String[]{"Google（免费，测试用）", "大模型 API（推荐，质量最好）"}, idx(trV, p.translator), new OnPick() { public void pick(int i) { p.translator = trV[i]; apiBox.setVisibility(i == 1 ? View.VISIBLE : View.GONE); } });
+    spinner(translateBox, "Translator", new String[]{"Google (free, for testing)", "LLM API (recommended, best quality)"}, idx(trV, p.translator), new OnPick() { public void pick(int i) { p.translator = trV[i]; apiBox.setVisibility(i == 1 ? View.VISIBLE : View.GONE); } });
     translateBox.addView(apiBox); apiBox.setVisibility("openai".equals(p.translator) ? View.VISIBLE : View.GONE);
-    edit(apiBox, "API 地址", p.apiBase.isEmpty() ? "https://api.deepseek.com/v1" : p.apiBase, false, new OnText() { public void text(String s) { p.apiBase = s; } });
+    edit(apiBox, "API URL", p.apiBase.isEmpty() ? "https://api.deepseek.com/v1" : p.apiBase, false, new OnText() { public void text(String s) { p.apiBase = s; } });
     edit(apiBox, "API Key", p.apiKey, true, new OnText() { public void text(String s) { p.apiKey = s; } });
-    edit(apiBox, "模型 ID", p.apiModel.isEmpty() ? "deepseek-chat" : p.apiModel, false, new OnText() { public void text(String s) { p.apiModel = s; } });
+    edit(apiBox, "Model ID", p.apiModel.isEmpty() ? "deepseek-chat" : p.apiModel, false, new OnText() { public void text(String s) { p.apiModel = s; } });
     final String[] dispV = {"both", "target", "source"};
-    spinner(translateBox, "显示内容", new String[]{"原文 + 译文", "只显示译文", "只显示原文"}, idx(dispV, p.display), new OnPick() { public void pick(int i) { p.display = dispV[i]; } });
+    spinner(translateBox, "Show", new String[]{"Original + translation", "Translation only", "Original only"}, idx(dispV, p.display), new OnPick() { public void pick(int i) { p.display = dispV[i]; } });
 
-    section("显示");
-    spinner(col, "同时显示", new String[]{"1 句", "2 句（推荐）", "3 句"}, p.maxLines - 1, new OnPick() { public void pick(int i) { p.maxLines = i + 1; } });
-    seek(col, "字号", 12, 36, (int) p.fontSize, new OnSeek() { public void seek(int v) { p.fontSize = v; } });
-    seek(col, "字幕框宽度", 50, 100, p.boxWidth, new OnSeek() { public void seek(int v) { p.boxWidth = v; } });
-    seek(col, "背景深浅", 0, 90, (int) (p.bgOpacity * 100), new OnSeek() { public void seek(int v) { p.bgOpacity = v / 100f; } });
-    seek(col, "断句停顿", 300, 1200, p.silenceMs, new OnSeek() { public void seek(int v) { p.silenceMs = v; } });
-    hint(col, "这项设置要重新开始字幕后才生效。");
+    section("Display");
+    spinner(col, "Lines shown", new String[]{"1 sentence", "2 sentences (recommended)", "3 sentences"}, p.maxLines - 1, new OnPick() { public void pick(int i) { p.maxLines = i + 1; } });
+    seek(col, "Font size", 12, 36, (int) p.fontSize, new OnSeek() { public void seek(int v) { p.fontSize = v; } });
+    seek(col, "Subtitle box width", 50, 100, p.boxWidth, new OnSeek() { public void seek(int v) { p.boxWidth = v; } });
+    seek(col, "Background opacity", 0, 90, (int) (p.bgOpacity * 100), new OnSeek() { public void seek(int v) { p.bgOpacity = v / 100f; } });
+    seek(col, "Sentence pause", 300, 1200, p.silenceMs, new OnSeek() { public void seek(int v) { p.silenceMs = v; } });
+    hint(col, "This setting takes effect after restarting subtitles.");
 
-    section("字幕记录");
-    sw(col, "记录字幕（不开只保留最近的字幕）", p.record, new OnCheck() { public void check(boolean b) { p.record = b; } });
+    section("Transcript");
+    sw(col, "Record subtitles (off = only recent lines)", p.record, new OnCheck() { public void check(boolean b) { p.record = b; } });
     LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-    Button exp = new Button(this); exp.setText(t("导出文本"));
+    Button exp = new Button(this); exp.setText(t("Export text"));
     exp.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
       StringBuilder sb = new StringBuilder(); synchronized (CaptionService.transcript) { for (String l : CaptionService.transcript) sb.append(l).append('\n'); }
-      if (sb.length() == 0) { status.setText(t("还没有字幕内容")); return; }
+      if (sb.length() == 0) { status.setText(t("No subtitles yet")); return; }
       Intent i = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, sb.toString()).putExtra(Intent.EXTRA_SUBJECT, "LiveSub");
-      startActivity(Intent.createChooser(i, t("导出文本")));
+      startActivity(Intent.createChooser(i, t("Export text")));
     } });
-    Button clr = new Button(this); clr.setText(t("清空"));
-    clr.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { synchronized (CaptionService.transcript) { CaptionService.transcript.clear(); } status.setText(t("已清空")); } });
+    Button clr = new Button(this); clr.setText(t("Clear"));
+    clr.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { synchronized (CaptionService.transcript) { CaptionService.transcript.clear(); } status.setText(t("Cleared")); } });
     row.addView(exp); row.addView(clr); col.addView(row);
 
-    section("模型与存储");
+    section("Models & storage");
     models = label("", 12, false); col.addView(models);
-    hint(col, "识别模型下载一次后保存在本机，不需要联网也能识别（翻译仍需联网）。下载太慢可以在「设置 → 高级 → 模型下载源」切换到镜像。");
+    hint(col, "Models are downloaded once and kept on this computer, so recognition works offline (translation needs internet). If downloads are slow, switch Settings → Advanced → Model source to the mirror.");
     final String[] hostV = {"hf", "mirror"};
-    spinner(col, "模型下载源", new String[]{"Hugging Face", "hf-mirror.com 镜像"}, idx(hostV, p.modelHost), new OnPick() { public void pick(int i) { p.modelHost = hostV[i]; } });
-    Button del = new Button(this); del.setText(t("删除已下载的模型"));
+    spinner(col, "Model source", new String[]{"Hugging Face", "hf-mirror.com mirror"}, idx(hostV, p.modelHost), new OnPick() { public void pick(int i) { p.modelHost = hostV[i]; } });
+    Button del = new Button(this); del.setText(t("Delete downloaded models"));
     del.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
-      if (CaptionService.running) { status.setText(t("先停止字幕再删除模型")); return; }
-      Models.deleteAll(getFilesDir()); status.setText(t("已删除下载的模型")); refresh();
+      if (CaptionService.running) { status.setText(t("Stop subtitles before deleting models")); return; }
+      Models.deleteAll(getFilesDir()); status.setText(t("Downloaded models deleted")); refresh();
     } });
     col.addView(del);
-    TextView foot = label(t("拖动字幕框可以移动位置，双击回到默认位置。"), 12, false); foot.setGravity(Gravity.CENTER); foot.setAlpha(0.6f); col.addView(foot);
+    TextView foot = label(t("Drag the subtitle box to move it; double-tap to reset."), 12, false); foot.setGravity(Gravity.CENTER); foot.setAlpha(0.6f); col.addView(foot);
   }
 
   void refresh() {
-    toggle.setText(t(CaptionService.running ? "停止字幕" : "开始字幕"));
+    toggle.setText(t(CaptionService.running ? "Stop subtitles" : "Start subtitles"));
     boolean canOverlay = Settings.canDrawOverlays(this);
     overlayBtn.setVisibility(canOverlay ? View.GONE : View.VISIBLE);
-    if (!CaptionService.running && status.getText().length() == 0) status.setText(t(canOverlay ? "未开始" : "需要「显示在其他应用上层」权限才能显示字幕"));
+    if (!CaptionService.running && status.getText().length() == 0) status.setText(t(canOverlay ? "Not started" : "Subtitles need the \"Display over other apps\" permission"));
     StringBuilder sb = new StringBuilder();
-    for (Models.Spec s : Models.ALL.values()) sb.append(t(s.name)).append(": ").append(t(Models.ready(getFilesDir(), s.id) ? "已下载" : "未下载")).append('\n');
-    sb.append(t("已下载的模型：{mb} MB").replace("{mb}", String.valueOf(Models.downloadedBytes(getFilesDir()) / 1000000)));
-    if (!Models.ready(getFilesDir(), "sensevoice")) sb.append('\n').append(t("首次使用需要下载约 {mb}MB 模型（自动在后台完成，之后缓存在本机）。各语言的精识别模型会在第一次听到该语言时再下载。").replace("{mb}", "240"));
+    for (Models.Spec s : Models.ALL.values()) sb.append(t(s.name)).append(": ").append(t(Models.ready(getFilesDir(), s.id) ? "downloaded" : "not downloaded")).append('\n');
+    sb.append(t("Downloaded models: {mb} MB").replace("{mb}", String.valueOf(Models.downloadedBytes(getFilesDir()) / 1000000)));
+    if (!Models.ready(getFilesDir(), "sensevoice")) sb.append('\n').append(t("First use downloads about {mb}MB of models automatically (cached afterwards). Each language's high-accuracy model is downloaded the first time that language is heard.").replace("{mb}", "240"));
     models.setText(sb.toString());
   }
 
   void start() {
-    if (!Settings.canDrawOverlays(this)) { status.setText(t("需要「显示在其他应用上层」权限才能显示字幕")); startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))); return; }
+    if (!Settings.canDrawOverlays(this)) { status.setText(t("Subtitles need the \"Display over other apps\" permission")); startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))); return; }
     java.util.List<String> need = new java.util.ArrayList<String>();
     if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) need.add(Manifest.permission.RECORD_AUDIO);
     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) need.add("android.permission.POST_NOTIFICATIONS");
@@ -198,18 +198,18 @@ public class MainActivity extends Activity {
       MediaProjectionManager m = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
       startActivityForResult(m.createScreenCaptureIntent(), REQ_CAPTURE);
     } else startForegroundService(new Intent(this, CaptionService.class).setAction(CaptionService.ACTION_START));
-    status.setText(t("启动中…"));
+    status.setText(t("Starting…"));
   }
 
   public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
     if (code != REQ_PERM) return;
     if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) start();
-    else status.setText(t("没有获得录音权限"));
+    else status.setText(t("Recording permission denied"));
   }
 
   protected void onActivityResult(int req, int code, Intent data) {
     if (req != REQ_CAPTURE) return;
-    if (code != RESULT_OK || data == null) { status.setText(t("没有拿到系统声音")); return; }
+    if (code != RESULT_OK || data == null) { status.setText(t("Couldn't capture system audio")); return; }
     startForegroundService(new Intent(this, CaptionService.class).setAction(CaptionService.ACTION_START).putExtra("code", code).putExtra("data", data));
     moveTaskToBack(true); // go back to the video / stream that was playing
   }

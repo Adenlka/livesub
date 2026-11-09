@@ -1,17 +1,17 @@
 import { uiLang } from './i18n.js';
 // Languages, model catalog, scenario presets, default settings
 export const SOURCE_LANGS = [
-  { code: 'ja', name: '日语' },
-  { code: 'zh', name: '中文' },
-  { code: 'en', name: '英语' },
-  { code: 'ko', name: '韩语' },
-  { code: 'auto', name: '自动（中日英韩混合，逐句识别）' },
-  { code: 'ms', name: '马来语（Whisper）' },
+  { code: 'ja', name: 'Japanese' },
+  { code: 'zh', name: 'Chinese' },
+  { code: 'en', name: 'English' },
+  { code: 'ko', name: 'Korean' },
+  { code: 'auto', name: 'Auto (zh/ja/en/ko, detected per sentence)' },
+  { code: 'ms', name: 'Malay (Whisper)' },
 ];
 
 export const TARGET_LANGS = [
-  { code: 'zh-CN', name: '简体中文', google: 'zh-CN', script: 'han' },
-  { code: 'zh-TW', name: '繁體中文', google: 'zh-TW', script: 'han' },
+  { code: 'zh-CN', name: 'Simplified Chinese', google: 'zh-CN', script: 'han' },
+  { code: 'zh-TW', name: 'Traditional Chinese', google: 'zh-TW', script: 'han' },
   { code: 'en', name: 'English', google: 'en', script: 'latin' },
   { code: 'ja', name: '日本語', google: 'ja', script: 'ja' },
   { code: 'ko', name: '한국어', google: 'ko', script: 'hangul' },
@@ -24,27 +24,27 @@ export const langName = (code) =>
 // Files come from Hugging Face (or a mirror); GitHub Releases as a fallback (extension / desktop main process only, web pages hit CORS)
 export const MODELS = {
   'parakeet-ja': {
-    name: 'Parakeet 日语（0.6B）', size: 656e6, repo: 'csukuangfj/sherpa-onnx-nemo-parakeet-tdt_ctc-0.6b-ja-35000-int8',
+    name: 'Parakeet Japanese (0.6B)', size: 656e6, repo: 'csukuangfj/sherpa-onnx-nemo-parakeet-tdt_ctc-0.6b-ja-35000-int8',
     files: ['model.int8.onnx', 'tokens.txt'],
   },
   'sensevoice': {
-    name: 'SenseVoice 中英日韩（0.2B）', size: 239e6, repo: 'csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17',
+    name: 'SenseVoice zh/en/ja/ko (0.2B)', size: 239e6, repo: 'csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17',
     files: ['model.int8.onnx', 'tokens.txt'],
   },
   'zipformer-zh': {
-    name: 'Zipformer 中文（精识别）', size: 367e6, repo: 'csukuangfj/sherpa-onnx-zipformer-ctc-zh-int8-2025-07-03',
+    name: 'Zipformer Chinese (high accuracy)', size: 367e6, repo: 'csukuangfj/sherpa-onnx-zipformer-ctc-zh-int8-2025-07-03',
     files: ['model.int8.onnx', 'tokens.txt'],
   },
   'parakeet-en': {
-    name: 'Parakeet-TDT 英语（0.6B）', size: 661e6, repo: 'csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8',
+    name: 'Parakeet-TDT English (0.6B)', size: 661e6, repo: 'csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8',
     files: ['encoder.int8.onnx', 'decoder.int8.onnx', 'joiner.int8.onnx', 'tokens.txt'],
   },
   'zipformer-ko': {
-    name: 'Zipformer 韩语（精识别）', size: 76e6, repo: 'k2-fsa/sherpa-onnx-zipformer-korean-2024-06-24',
+    name: 'Zipformer Korean (high accuracy)', size: 76e6, repo: 'k2-fsa/sherpa-onnx-zipformer-korean-2024-06-24',
     files: ['encoder-epoch-99-avg-1.int8.onnx', 'decoder-epoch-99-avg-1.int8.onnx', 'joiner-epoch-99-avg-1.int8.onnx', 'tokens.txt'],
   },
   'campplus': {
-    name: '说话人声纹 CAM++', size: 28e6, repo: 'csukuangfj/speaker-embedding-models',
+    name: 'Speaker embedding CAM++', size: 28e6, repo: 'csukuangfj/speaker-embedding-models',
     files: ['3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx'],
     github: 'https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/',
   },
@@ -68,10 +68,10 @@ export function modelUrls(id, file, host = 'hf') {
 //     English:  Parakeet-TDT-en -- meetings 10.8% / YouTube 12.1% (SenseVoice 15.3% / 16.4%)
 //     Auto:     SenseVoice identifies the language per sentence, then the language's refine model (one loaded at a time, switched on demand)
 export const ENGINES = [
-  { id: 'auto', name: '自动（推荐，各语言用最准的模型）' },
-  { id: 'sensevoice', name: '轻量：只用 SenseVoice（约 240MB，准确率略低）' },
-  { id: 'whisper-turbo', name: 'Whisper large-v3-turbo（多语言，需要显卡，约 1GB）' },
-  { id: 'whisper-small', name: 'Whisper small（多语言，约 250MB）' },
+  { id: 'auto', name: 'Auto (recommended, best model per language)' },
+  { id: 'sensevoice', name: 'Light: SenseVoice only (~240MB, slightly less accurate)' },
+  { id: 'whisper-turbo', name: 'Whisper large-v3-turbo (multilingual, needs GPU, ~1GB)' },
+  { id: 'whisper-small', name: 'Whisper small (multilingual, ~250MB)' },
 ];
 export const WHISPER_MODELS = {
   'whisper-turbo': { id: 'onnx-community/whisper-large-v3-turbo', dtype: { webgpu: { encoder_model: 'fp16', decoder_model_merged: 'q4' }, wasm: 'q8' }, gpu: true },
@@ -116,10 +116,10 @@ export function requiredModels(s) {
 
 // --- scenario presets --- (parameters tuned on synthetic scenario evaluations)
 export const SCENES = {
-  live:    { name: '直播', desc: '主播说话、有背景音乐', silenceMs: 550, maxSegmentMs: 8000, splitTurns: false, translateHoldMs: 1200 },
-  video:   { name: '视频', desc: 'YouTube、电视剧、动画', silenceMs: 650, maxSegmentMs: 9000, splitTurns: true, translateHoldMs: 1200 },
-  meeting: { name: '会议', desc: '多人轮流发言、换人快', silenceMs: 550, maxSegmentMs: 8000, splitTurns: true, translateHoldMs: 1500 },
-  lecture: { name: '课堂/讲座', desc: '一个人长时间讲', silenceMs: 700, maxSegmentMs: 12000, splitTurns: false, translateHoldMs: 2000 },
+  live:    { name: 'Live stream', desc: 'Streamer talking, background music', silenceMs: 550, maxSegmentMs: 8000, splitTurns: false, translateHoldMs: 1200 },
+  video:   { name: 'Video', desc: 'YouTube, TV shows, anime', silenceMs: 650, maxSegmentMs: 9000, splitTurns: true, translateHoldMs: 1200 },
+  meeting: { name: 'Meeting', desc: 'Several people, quick turn-taking', silenceMs: 550, maxSegmentMs: 8000, splitTurns: true, translateHoldMs: 1500 },
+  lecture: { name: 'Class / lecture', desc: 'One person talking at length', silenceMs: 700, maxSegmentMs: 12000, splitTurns: false, translateHoldMs: 2000 },
 };
 export const SCENE_KEYS = ['silenceMs', 'maxSegmentMs', 'splitTurns', 'translateHoldMs'];
 

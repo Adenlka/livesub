@@ -79,8 +79,8 @@ public class Translator {
         backoff = backoff == 0 ? 5000 : Math.min(60000, backoff * 2);
         coolUntil = System.currentTimeMillis() + backoff;
         synchronized (q) { for (int i = group.size() - 1; i >= 0; i--) q.addFirst(group.get(i)); }
-        if (System.currentTimeMillis() - lastRateMsg > 30000) { lastRateMsg = System.currentTimeMillis(); out.result(new ArrayList<Integer>(), null, I18n.t("翻译接口限流，{s} 秒后自动重试（期间的句子会合并翻译）", "s", String.valueOf(backoff / 1000))); }
-      } catch (Exception e) { out.result(keys, null, I18n.t("翻译失败：") + e.getMessage()); }
+        if (System.currentTimeMillis() - lastRateMsg > 30000) { lastRateMsg = System.currentTimeMillis(); out.result(new ArrayList<Integer>(), null, I18n.t("Translation is rate-limited; retrying in {s}s (lines in between are translated together)", "s", String.valueOf(backoff / 1000))); }
+      } catch (Exception e) { out.result(keys, null, I18n.t("Translation failed: ") + e.getMessage()); }
     }
   }
 

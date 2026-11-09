@@ -37,8 +37,8 @@ async function listSources() {
   const cur = sel.value || localStorage.getItem('source') || 'system';
   let mics = [];
   try { mics = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput' && d.deviceId !== 'communications'); } catch {}
-  sel.innerHTML = `<option value="system">${t('系统声音（电脑正在播放的一切）')}</option><option value="mix">${t('系统声音 + 麦克风（线上会议）')}</option>` +
-    mics.map((m, i) => `<option value="mic:${m.deviceId}">🎙 ${m.label || t('麦克风') + ' ' + (i + 1)}</option>`).join('');
+  sel.innerHTML = `<option value="system">${t('System audio (everything the PC plays)')}</option><option value="mix">${t('System audio + mic (online meeting)')}</option>` +
+    mics.map((m, i) => `<option value="mic:${m.deviceId}">🎙 ${m.label || t('Microphone') + ' ' + (i + 1)}</option>`).join('');
   sel.value = [...sel.options].some(o => o.value === cur) ? cur : 'system';
   $('srcHint').classList.toggle('hide', sel.value !== 'mix');
 }
@@ -63,7 +63,7 @@ function setStatus(text, cls = '', progress = null) {
 // --- transcript (panel + autosave) ---
 const logItems = new Map();
 const fmtT = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
-function renderEmptyLog() { if (!logItems.size) $('logList').innerHTML = `<div class="empty">${t('开始后，字幕会记录在这里')}</div>`; }
+function renderEmptyLog() { if (!logItems.size) $('logList').innerHTML = `<div class="empty">${t('Subtitles will be listed here after you start')}</div>`; }
 function logCaption(c) {
   const list = $('logList');
   if (c.removed) { logItems.get(c.key)?.el.remove(); logItems.delete(c.key); renderEmptyLog(); return; }
@@ -104,7 +104,7 @@ function autosave(c, r, rec) {
   const ready = !pipe?.tm.enabled || c.translation !== undefined || c.merged;
   if (!ready) return;
   saved.add(c.key);
-  const who = r.speaker != null ? speakerName(r.speaker) + '：' : '';
+  const who = r.speaker != null ? speakerName(r.speaker) + ': ' : '';
   api.autosaveAppend(`[${rec ? fmtT(rec.t) : ''}] ${who}${r.text}${r.translation && !r.merged ? '\n    → ' + r.translation : ''}`);
 }
 
@@ -118,7 +118,7 @@ const ipcFetch = async (url, init = {}) => {
   return { ok: r.ok, status: r.status, text: async () => r.text, json: async () => JSON.parse(r.text) };
 };
 
-api.onModelProgress((p) => setStatus(t('下载{label} {a} / {b} MB', { label: t(p.label), a: (p.loaded / 1e6).toFixed(0), b: (p.total / 1e6).toFixed(0) }), '', p.total ? p.loaded / p.total : 0));
+api.onModelProgress((p) => setStatus(t('Downloading {label} {a} / {b} MB', { label: t(p.label), a: (p.loaded / 1e6).toFixed(0), b: (p.total / 1e6).toFixed(0) }), '', p.total ? p.loaded / p.total : 0));
 
 /** Make sure the required models are on disk (downloaded by the main process, with progress) */
 const specOf = (id) => ({ id, name: MODELS[id].name, size: MODELS[id].size, files: MODELS[id].files,
@@ -126,14 +126,14 @@ const specOf = (id) => ({ id, name: MODELS[id].name, size: MODELS[id].size, file
 let ensuring = null;
 const ensureModels = () => ensuring ??= ensureModels0().finally(() => { ensuring = null; });
 // Download the required models in the background at app launch (~270MB the first time) so Start doesn't have to wait
-setTimeout(() => { if (!running) ensureModels().then(ok => { if (ok && !running) setStatus('未开始'); }); }, 800);
+setTimeout(() => { if (!running) ensureModels().then(ok => { if (ok && !running) setStatus('Not started'); }); }, 800);
 async function ensureModels0() {
   // Auto (multi-language) mode: ja/en/zh/ko refine models are not pre-downloaded; each is fetched in the background the first time its language is heard (saves disk)
   const ids = essentialModels(settings);
   if (!ids.length) return true;
-  setStatus('检查识别模型…');
+  setStatus('Checking models…');
   const r = await api.ensureModels(ids.map(specOf));
-  if (!r.ok) { setStatus(t('模型下载失败：') + r.error + t('。可以在「设置 → 高级 → 模型下载源」换成镜像再试。'), 'error'); return false; }
+  if (!r.ok) { setStatus(t('Model download failed: ') + r.error + t('. Try switching Settings → Advanced → Model source to the mirror.'), 'error'); return false; }
   refreshModelInfo();
   return true;
 }
@@ -144,8 +144,8 @@ async function bgDownload(id) {
   if (bgJobs.has(id) || !MODELS[id]) return;
   bgJobs.add(id);
   const r = await api.ensureModels([specOf(id)]).catch(e => ({ ok: false, error: e.message }));
-  if (r.ok) { setStatus(t('{m} 已下载，接下来会自动切换', { m: t(MODELS[id].name) }), 'ready'); refreshModelInfo(); }
-  else { bgJobs.delete(id); setStatus(t('模型下载失败：') + r.error, 'warn'); }
+  if (r.ok) { setStatus(t('{m} downloaded; switching automatically', { m: t(MODELS[id].name) }), 'ready'); refreshModelInfo(); }
+  else { bgJobs.delete(id); setStatus(t('Model download failed: ') + r.error, 'warn'); }
 }
 
 async function getPipeline() {
@@ -180,7 +180,7 @@ async function openStreams(src) {
   const sys = async () => {
     const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
     s.getVideoTracks().forEach(t => { t.stop(); s.removeTrack(t); });
-    if (!s.getAudioTracks().length) throw new Error(t('没有拿到系统声音'));
+    if (!s.getAudioTracks().length) throw new Error(t('Couldn\'t capture system audio'));
     return s;
   };
   const mic = (deviceId) => navigator.mediaDevices.getUserMedia({
@@ -193,7 +193,7 @@ async function openStreams(src) {
 
 async function start() {
   if (running) return;
-  if (mode === 'file') { setStatus('正在转写文件，请等它完成', 'warn'); return; }
+  if (mode === 'file') { setStatus('Transcribing a file; please wait for it to finish', 'warn'); return; }
   $('toggle').disabled = true;
   try {
     const p = await getPipeline();
@@ -208,13 +208,13 @@ async function start() {
     stream = streams[0]; extraStreams = streams.slice(1);
     node.port.onmessage = (e) => { if (running) p.pushAudio(e.data, ctx.sampleRate); };
     running = true; mode = 'live';
-    if (p.ready) setStatus('识别中', 'ready');
+    if (p.ready) setStatus('Listening', 'ready');
     if (settings.autoSave) api.autosaveBegin(settings.scene && settings.scene !== 'custom' ? settings.scene : '');
     saved.clear();
-    $('toggle').textContent = t('停止字幕');
+    $('toggle').textContent = t('Stop subtitles');
     $('toggle').classList.add('on');
   } catch (e) {
-    setStatus(t('启动失败：') + (e.name === 'NotAllowedError' ? t('没有获得录音权限') : e.message), 'error');
+    setStatus(t('Failed to start: ') + (e.name === 'NotAllowedError' ? t('Recording permission denied') : e.message), 'error');
     await closeStreams();
   } finally { $('toggle').disabled = false; }
 }
@@ -229,14 +229,14 @@ async function stop() {
   if (!running) return;
   running = false;
   await closeStreams();
-  $('toggle').textContent = t('开始字幕');
+  $('toggle').textContent = t('Start subtitles');
   $('toggle').classList.remove('on');
   $('restart').classList.add('hide');
   $('level').style.width = '0';
-  setStatus('正在收尾…');
+  setStatus('Finishing…');
   await pipe?.stop().catch(() => {});
   mode = 'idle';
-  setStatus('已停止（模型保持加载，再次开始无需等待）');
+  setStatus('Stopped (models stay loaded; restarting is instant)');
   setTimeout(() => { if (!running) api.clearOverlay(); }, 3000);
 }
 
@@ -244,18 +244,18 @@ $('toggle').onclick = () => (running ? stop() : start());
 api.onToggle(() => (running ? stop() : start()));
 
 // --- video/audio file to subtitles ---
-$('file').onclick = () => { if (running) { setStatus('先停止实时字幕再转写文件', 'warn'); return; } $('fileInput').click(); };
+$('file').onclick = () => { if (running) { setStatus('Stop live subtitles before transcribing a file', 'warn'); return; } $('fileInput').click(); };
 $('fileInput').onchange = async () => {
   const f = $('fileInput').files[0];
   $('fileInput').value = '';
   if (!f) return;
-  if (f.size > 2.5e9) { setStatus('文件太大（超过 2.5GB），请先剪短或只导出音轨', 'error'); return; }
+  if (f.size > 2.5e9) { setStatus('File too large (over 2.5GB). Trim it or export just the audio', 'error'); return; }
   mode = 'file';
   $('toggle').disabled = true; $('file').disabled = true;
   try {
     const p = await getPipeline();
     if (!p) return;
-    setStatus(t('读取并解码「{f}」…', { f: f.name }));
+    setStatus(t('Reading and decoding "{f}"…', { f: f.name }));
     // Decode straight to 16 kHz (saves memory)
     const buf = await new OfflineAudioContext(1, 1, 16000).decodeAudioData(await f.arrayBuffer());
     const ch = buf.numberOfChannels > 1 ? [buf.getChannelData(0), buf.getChannelData(1)] : [buf.getChannelData(0)];
@@ -269,16 +269,16 @@ $('fileInput').onchange = async () => {
       p.pushAudio(ch.map(c => c.slice(i, i + step)), 16000);
       // Backpressure: pause briefly when recognition falls behind (and update progress)
       while (p.outstanding > 3) await new Promise(r => setTimeout(r, 200));
-      setStatus(t('转写中 {a} / {b}', { a: fmtT(i / 16), b: fmtT(total / 16) }), '', i / total);
+      setStatus(t('Transcribing {a} / {b}', { a: fmtT(i / 16), b: fmtT(total / 16) }), '', i / total);
     }
     await p.stop();
     p.realtime = true;
-    setStatus(t('转写完成：{n} 条字幕', { n: p.rows().length }), 'ready');
+    setStatus(t('Done: {n} subtitles', { n: p.rows().length }), 'ready');
     const name = f.name.replace(/\.[^.]+$/, '');
     const out = await api.saveFile(name + '.srt', p.exportSRT());
-    if (out) setStatus(t('已保存') + ' ' + out, 'ready');
+    if (out) setStatus(t('Saved') + ' ' + out, 'ready');
   } catch (e) {
-    setStatus(t('转写失败：') + (/decode|Unable to decode/i.test(e.message) ? t('无法解码这个文件的音频（格式不支持）') : e.message), 'error');
+    setStatus(t('Transcription failed: ') + (/decode|Unable to decode/i.test(e.message) ? t('Can\'t decode this file\'s audio (unsupported format)') : e.message), 'error');
   } finally {
     if (pipe) pipe.realtime = true;
     mode = 'idle';
@@ -288,7 +288,7 @@ $('fileInput').onchange = async () => {
 
 // --- other buttons ---
 let locked = await api.getOverlayLocked();
-const renderLock = () => ($('lock').textContent = t(locked ? '解锁字幕位置' : '锁定字幕位置'));
+const renderLock = () => ($('lock').textContent = t(locked ? 'Unlock subtitle position' : 'Lock subtitle position'));
 $('lock').onclick = () => api.setOverlayLocked(!locked);
 api.onOverlayLock((v) => { locked = v; renderLock(); });
 renderLock();
@@ -298,28 +298,28 @@ const stamp = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'
 document.querySelectorAll('[data-exp]').forEach(b => b.onclick = async () => {
   const kind = b.dataset.exp;
   const content = kind === 'srt' ? pipe?.exportSRT() : kind === 'vtt' ? pipe?.exportVTT() : pipe?.exportText();
-  if (!content || content === 'WEBVTT\n\n') { setStatus('还没有字幕内容', 'warn'); return; }
+  if (!content || content === 'WEBVTT\n\n') { setStatus('No subtitles yet', 'warn'); return; }
   const out = await api.saveFile(`livesub-${stamp()}.${kind}`, content);
-  if (out) setStatus(t('已保存') + ' ' + out, 'ready');
+  if (out) setStatus(t('Saved') + ' ' + out, 'ready');
 });
-$('copy').onclick = async () => { const t = pipe?.exportText(); if (t) { await navigator.clipboard.writeText(t); setStatus('已复制到剪贴板', 'ready'); } };
-$('clear').onclick = () => { if (!confirm(t('清空面板里的字幕记录？（已自动保存的文件不受影响）'))) return; pipe?.transcript.clear(); logItems.clear(); renderEmptyLog(); };
+$('copy').onclick = async () => { const t = pipe?.exportText(); if (t) { await navigator.clipboard.writeText(t); setStatus('Copied to clipboard', 'ready'); } };
+$('clear').onclick = () => { if (!confirm(t('Clear the transcript in this panel? (Saved files are not affected)'))) return; pipe?.transcript.clear(); logItems.clear(); renderEmptyLog(); };
 $('sum').onclick = async () => {
   const box = $('summary'); box.classList.remove('hide');
-  if (!pipe?.rows().length) { box.textContent = t('还没有字幕内容'); return; }
-  box.textContent = t('正在总结…');
+  if (!pipe?.rows().length) { box.textContent = t('No subtitles yet'); return; }
+  box.textContent = t('Summarizing…');
   try { box.textContent = await pipe.summarize(); } catch (e) { box.textContent = '⚠ ' + e.message; }
 };
 $('resetSpk').onclick = () => pipe?.resetSpeakers();
 
 async function refreshModelInfo() {
   const i = await api.modelsInfo();
-  $('modelInfo').textContent = t('已下载的模型：{mb} MB', { mb: (i.bytes / 1e6).toFixed(0) }) + '\n' + t('位置：') + i.dir;
+  $('modelInfo').textContent = t('Downloaded models: {mb} MB', { mb: (i.bytes / 1e6).toFixed(0) }) + '\n' + t('Location: ') + i.dir;
 }
 $('openModels').onclick = () => api.openModels();
 $('delModels').onclick = async () => {
-  if (running || mode === 'file') { setStatus('先停止字幕', 'warn'); return; }
-  if (!confirm(t('删除已下载的识别模型？下次开始会重新下载。'))) return;
+  if (running || mode === 'file') { setStatus('Stop subtitles first', 'warn'); return; }
+  if (!confirm(t('Delete downloaded models? They will be downloaded again next start.'))) return;
   pipe?.dispose(); pipe = null;
   await api.deleteModels(); refreshModelInfo();
 };

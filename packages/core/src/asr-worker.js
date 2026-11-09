@@ -48,8 +48,8 @@ self.onmessage = (e) => {
 
 function friendlyError(err) {
   const msg = String(err?.message ?? err);
-  if (/Failed to fetch|NetworkError|下载失败|download failed|ダウンロード失敗/i.test(msg)) return t('模型下载失败，请检查网络；也可以在设置里把「模型下载源」换成镜像。') + (/Failed to fetch|NetworkError/.test(msg) ? '' : ` (${msg})`);
-  if (/memory|Out of memory|RangeError/i.test(msg)) return t('内存不足，模型加载失败。请关闭其他占内存的程序，或换用更小的模型。');
+  if (/Failed to fetch|NetworkError|下载失败|download failed|ダウンロード失敗/i.test(msg)) return t('Model download failed. Check your network, or switch "Model source" to the mirror in settings.') + (/Failed to fetch|NetworkError/.test(msg) ? '' : ` (${msg})`);
+  if (/memory|Out of memory|RangeError/i.test(msg)) return t('Not enough memory to load the model. Close other programs or choose a smaller model.');
   return msg;
 }
 
@@ -93,8 +93,8 @@ function setupOrt(m) {
   ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.max(1, want) : 1;
 }
 
-const modelName = (id) => ({ 'parakeet-ja': t('Parakeet 日语'), 'parakeet-en': t('Parakeet 英语'), 'zipformer-zh': t('Zipformer 中文'), 'zipformer-ko': t('Zipformer 韩语'), sensevoice: 'SenseVoice' })[id] ?? id;
-const langName = (l) => t({ zh: '中文', ja: '日语', en: '英语', ko: '韩语' }[l] ?? l);
+const modelName = (id) => ({ 'parakeet-ja': t('Parakeet Japanese'), 'parakeet-en': t('Parakeet English'), 'zipformer-zh': t('Zipformer Chinese'), 'zipformer-ko': t('Zipformer Korean'), sensevoice: 'SenseVoice' })[id] ?? id;
+const langName = (l) => t({ zh: 'Chinese', ja: 'Japanese', en: 'English', ko: 'Korean' }[l] ?? l);
 
 // --- parent worker side: handle to the refine child worker ---
 function spawnRefiner(m, langs) {
@@ -108,13 +108,13 @@ function spawnRefiner(m, langs) {
     if (x.type === 'status') return post(x); // download progress, on-demand download notices, etc. are forwarded to the main thread as-is
     if (x.type === 'loaded') {
       loaded.clear(); x.langs.forEach(l => loaded.add(l));
-      if (x.langs.length) { readyResolve(); if (engine) status('ready', t('识别就绪：') + engine.label, { engine: engine.name, threads: ort.env.wasm.numThreads, speakers: !!spk }); }
+      if (x.langs.length) { readyResolve(); if (engine) status('ready', t('Ready: ') + engine.label, { engine: engine.name, threads: ort.env.wasm.numThreads, speakers: !!spk }); }
       return;
     }
     if (x.type === 'failed') { if (wanted === x.lang) wanted = null; readyResolve(); return; }
     if (x.type === 'refined') { const res = pending.get(x.jid); pending.delete(x.jid); res?.(x); }
   };
-  w.onerror = (e) => { status('warn', t('识别出错：') + (e.message ?? 'refine worker')); readyResolve(); failAll(); };
+  w.onerror = (e) => { status('warn', t('Recognition error: ') + (e.message ?? 'refine worker')); readyResolve(); failAll(); };
   w.postMessage({ ...m, type: 'init', role: 'refine', langs });
   return {
     loaded, ready,
@@ -140,8 +140,8 @@ async function initRefiner(m) {
     catch (err) {
       failedAt[l] = Date.now();
       // Desktop: refine models are downloaded on demand. The first time a language is heard, ask the main process to download it in the background; SenseVoice is used until then
-      if (m.localModelBase && multi && !asked[l]) { asked[l] = true; status('loading', t('听到{l}，后台下载{l}精识别模型（只需一次，期间照常出字幕）', { l: langName(l) }), { needModel: REFINE_MODEL[l] }); }
-      else if (!asked[l]) { asked[l] = true; status('warn', t('{m}加载失败，{l}改用 SenseVoice：', { m: modelName(REFINE_MODEL[l]), l: langName(l) }) + friendlyError(err)); }
+      if (m.localModelBase && multi && !asked[l]) { asked[l] = true; status('loading', t('Heard {l}; downloading the {l} high-accuracy model in the background (one time only; subtitles keep running)', { l: langName(l) }), { needModel: REFINE_MODEL[l] }); }
+      else if (!asked[l]) { asked[l] = true; status('warn', t('Could not load {m}; using SenseVoice for {l}: ', { m: modelName(REFINE_MODEL[l]), l: langName(l) }) + friendlyError(err)); }
       post({ type: 'failed', lang: l });
       return null;
     }
@@ -177,46 +177,46 @@ async function initRefiner(m) {
 
 function makeLoaders(m) {
   const progress = (label) => (loaded, total) =>
-    status('loading', t('下载{label} {a} / {b} MB', { label: t(label), a: (loaded / 1e6).toFixed(0), b: (total / 1e6).toFixed(0) }), { progress: total ? loaded / total : 0 });
+    status('loading', t('Downloading {label} {a} / {b} MB', { label: t(label), a: (loaded / 1e6).toFixed(0), b: (total / 1e6).toFixed(0) }), { progress: total ? loaded / total : 0 });
   const opts = (label) => ({ host: m.modelHost, localBase: m.localModelBase, onProgress: progress(label) });
 
   const text = (b) => new TextDecoder().decode(b);
   const files = (id, label) => Promise.all(MODELS[id].files.map((f, i) =>
-    getModelFile(id, f, f.endsWith('.txt') ? { ...opts('词表'), onProgress: null } : opts(t(label) + (MODELS[id].files.length > 2 ? ` (${i + 1})` : '')))));
+    getModelFile(id, f, f.endsWith('.txt') ? { ...opts('vocabulary'), onProgress: null } : opts(t(label) + (MODELS[id].files.length > 2 ? ` (${i + 1})` : '')))));
   // Loader per model; sentences that arrive early wait in the queue until everything is loaded
   const LOAD = {
     'parakeet-ja': async () => {
-      status('loading', t('准备日语识别模型…'), { progress: 0 });
-      const [model, tokens] = await files('parakeet-ja', '日语识别模型');
-      status('loading', t('加载日语识别模型…'), { progress: 1 });
+      status('loading', t('Preparing Japanese model…'), { progress: 0 });
+      const [model, tokens] = await files('parakeet-ja', 'Japanese model');
+      status('loading', t('Loading Japanese model…'), { progress: 1 });
       const p = await ParakeetCtc.create({ ort, model, tokens: text(tokens) });
       return { transcribe: (a) => p.transcribe(a), setHotwords: (w) => p.setHotwords(w, 2.5), release: () => Promise.all([p.session, p.enc, p.dec, p.join].filter(Boolean).map(x => x.release?.())), };
     },
     'parakeet-en': async () => {
-      status('loading', t('准备英语识别模型…'), { progress: 0 });
-      const [encoder, decoder, joiner, tokens] = await files('parakeet-en', '英语识别模型');
-      status('loading', t('加载英语识别模型…'), { progress: 1 });
+      status('loading', t('Preparing English model…'), { progress: 0 });
+      const [encoder, decoder, joiner, tokens] = await files('parakeet-en', 'English model');
+      status('loading', t('Loading English model…'), { progress: 1 });
       const p = await ParakeetTdt.create({ ort, encoder, decoder, joiner, tokens: text(tokens) });
       return { transcribe: async (a) => { const r = await p.transcribe(a); return { ...r, text: enItn(r.text) }; }, setHotwords: () => {}, release: () => Promise.all([p.session, p.enc, p.dec, p.join].filter(Boolean).map(x => x.release?.())), };
     },
     'zipformer-zh': async () => {
-      status('loading', t('准备中文识别模型…'), { progress: 0 });
-      const [model, tokens] = await files('zipformer-zh', '中文识别模型');
-      status('loading', t('加载中文识别模型…'), { progress: 1 });
+      status('loading', t('Preparing Chinese model…'), { progress: 0 });
+      const [model, tokens] = await files('zipformer-zh', 'Chinese model');
+      status('loading', t('Loading Chinese model…'), { progress: 1 });
       const z = await ZipformerCtc.create({ ort, model, tokens: text(tokens) });
       return { transcribe: (a) => z.transcribe(a), setHotwords: (w) => z.setHotwords(w, 2.5), release: () => z.session.release?.() };
     },
     'zipformer-ko': async () => {
-      status('loading', t('准备韩语识别模型…'), { progress: 0 });
-      const [encoder, decoder, joiner, tokens] = await files('zipformer-ko', '韩语识别模型');
-      status('loading', t('加载韩语识别模型…'), { progress: 1 });
+      status('loading', t('Preparing Korean model…'), { progress: 0 });
+      const [encoder, decoder, joiner, tokens] = await files('zipformer-ko', 'Korean model');
+      status('loading', t('Loading Korean model…'), { progress: 1 });
       const z = await ZipformerTransducer.create({ ort, encoder, decoder, joiner, tokens: text(tokens) });
       return { transcribe: (a) => z.transcribe(a), setHotwords: () => {}, release: () => Promise.all([z.enc, z.dec, z.join].map(x => x.release?.())) };
     },
     'sensevoice': async () => {
-      status('loading', t('准备中英日韩识别模型…'), { progress: 0 });
-      const [[model, tokens], cmvn] = await Promise.all([files('sensevoice', '中英日韩识别模型'), fetch(m.assetBase + 'models/sensevoice-cmvn.json').then(r => r.json())]);
-      status('loading', t('加载中英日韩识别模型…'), { progress: 1 });
+      status('loading', t('Preparing zh/en/ja/ko model…'), { progress: 0 });
+      const [[model, tokens], cmvn] = await Promise.all([files('sensevoice', 'zh/en/ja/ko model'), fetch(m.assetBase + 'models/sensevoice-cmvn.json').then(r => r.json())]);
+      status('loading', t('Loading zh/en/ja/ko model…'), { progress: 1 });
       const sv = await SenseVoice.create({ ort, model, tokens: text(tokens), cmvn });
       return { transcribe: (a, lang) => sv.transcribe(a, lang), setHotwords: (w) => sv.setHotwords(w) };
     },
@@ -284,23 +284,23 @@ async function init(m) {
     // Single language: wait for the refine model before starting (file transcription needs it); live mode shows SenseVoice text until it is ready
     if (ref && !multi && !cfg.twoPass) await ref.ready;
   } else {
-    eng = await loadWhisper(primary, m, progress('Whisper 模型'));
+    eng = await loadWhisper(primary, m, progress('Whisper model'));
   }
   eng.setHotwords?.(hotwords(m.glossaryText));
   await eng.transcribe(new Float32Array(16000)); // warm-up
 
   if (m.diarize) {
     try {
-      status('loading', t('加载说话人识别…'), { progress: 1 });
-      const model = await getModelFile('campplus', MODELS.campplus.files[0], opts('声纹模型'));
+      status('loading', t('Loading speaker identification…'), { progress: 1 });
+      const model = await getModelFile('campplus', MODELS.campplus.files[0], opts('speaker model'));
       const embedder = await SpeakerEmbedder.create({ ort, model });
       spk = { embedder, clusterer: new SpeakerClusterer({ threshold: m.speakerThreshold ?? 0.5 }) };
     } catch (err) {
-      status('warn', t('说话人识别不可用：') + friendlyError(err));
+      status('warn', t('Speaker identification unavailable: ') + friendlyError(err));
     }
   }
   engine = eng;
-  status('ready', t('识别就绪：') + (engine.label ?? engine.name), { engine: engine.name, threads: ort.env.wasm.numThreads, speakers: !!spk });
+  status('ready', t('Ready: ') + (engine.label ?? engine.name), { engine: engine.name, threads: ort.env.wasm.numThreads, speakers: !!spk });
   pump();
 }
 
@@ -315,7 +315,7 @@ async function loadWhisper(name, m, onProgress) {
   let gpu = false;
   if (m.device !== 'wasm') { try { gpu = !!(self.navigator?.gpu && await navigator.gpu.requestAdapter()); } catch {} }
   let key = m.engine === 'custom' ? null : name;
-  if (key === 'whisper-turbo' && !gpu) { status('warn', t('没有可用的显卡（WebGPU），turbo 在 CPU 上太慢，已改用 whisper-small')); key = 'whisper-small'; }
+  if (key === 'whisper-turbo' && !gpu) { status('warn', t('No usable GPU (WebGPU); turbo is too slow on CPU, switched to whisper-small')); key = 'whisper-small'; }
   const spec = key ? WHISPER_MODELS[key] : { id: m.customModel, dtype: { webgpu: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, wasm: 'q8' } };
   const files = new Map();
   const load = async (device) => {
@@ -335,12 +335,12 @@ async function loadWhisper(name, m, onProgress) {
       return { text: Array.isArray(out) ? out[0]?.text : out.text, conf: 1, lang: cfg.sourceLang === 'auto' ? null : cfg.sourceLang };
     };
     await run(new Float32Array(16000));
-    return { name: key ?? 'whisper-custom', label: spec.id.split('/').pop() + `（${device === 'webgpu' ? '显卡' : 'CPU'}）`, transcribe: run };
+    return { name: key ?? 'whisper-custom', label: spec.id.split('/').pop() + ` (${device === 'webgpu' ? 'GPU' : 'CPU'})`, transcribe: run };
   };
   try { return await load(gpu ? 'webgpu' : 'wasm'); }
   catch (err) {
     if (!gpu) throw err;
-    status('warn', t('显卡加载失败（{e}），改用 CPU', { e: err.message }));
+    status('warn', t('GPU failed ({e}); using CPU', { e: err.message }));
     return load('wasm');
   }
 }
@@ -445,7 +445,7 @@ async function pump() {
         postFinal(job, out, true); // publish the first-pass result as a subtitle first
         refineLater(job, out);
       } catch (err) {
-        status('warn', t('识别出错：') + err.message);
+        status('warn', t('Recognition error: ') + err.message);
         if (job.final) post({ type: 'final', id: job.id, parts: [] });
       }
     }

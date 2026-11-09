@@ -11,7 +11,7 @@ const tone = (ms, amp = 0.2) => Float32Array.from({ length: R * ms / 1000 }, (_,
 const noise = (ms, amp = 0.001) => Float32Array.from({ length: R * ms / 1000 }, () => (Math.random() - .5) * amp);
 const cat = (...a) => { const o = new Float32Array(a.reduce((s, x) => s + x.length, 0)); let k = 0; for (const x of a) { o.set(x, k); k += x.length; } return o; };
 
-test('segmenter(能量): 两句话被静音隔开 → 两个 final，带时间轴与逐帧分数', async () => {
+test('segmenter (energy): two utterances separated by silence -> two finals with timestamps and per-frame scores', async () => {
   const finals = [];
   const s = new SpeechSegmenter({ onFinal: f => finals.push(f) });
   await s.push(cat(noise(500), tone(1200), noise(800), tone(900), noise(900)));
@@ -21,7 +21,7 @@ test('segmenter(能量): 两句话被静音隔开 → 两个 final，带时间�
   assert.equal(ok[0].scores.length, ok[0].audio.length / 512);
 });
 
-test('segmenter: 外部 VAD 打分驱动（模拟 Silero）', async () => {
+test('segmenter: driven by external VAD scores (simulated Silero)', async () => {
   const finals = [];
   let i = 0;
   const pattern = (k) => (k >= 10 && k < 50) || (k >= 80 && k < 120) ? 0.9 : 0.05; // two stretches of 'speech'
@@ -31,7 +31,7 @@ test('segmenter: 外部 VAD 打分驱动（模拟 Silero）', async () => {
   assert.equal(finals.filter(f => f.audio).length, 2);
 });
 
-test('segmenter: 极短噪声不出字幕；连续语音按最大长度在低分处切开', async () => {
+test('segmenter: very short noise yields no caption; continuous speech is cut at a low-score point at max length', async () => {
   const a = [];
   const s1 = new SpeechSegmenter({ onFinal: f => a.push(f) });
   await s1.push(cat(noise(300), tone(100), noise(1000)));
@@ -45,7 +45,7 @@ test('segmenter: 极短噪声不出字幕；连续语音按最大长度在低分
   ok.forEach(f => assert.ok(f.audio.length / R <= 4.1));
 });
 
-test('segmenter: 说话期间产生 partial；flush 吐出剩余', async () => {
+test('segmenter: partials while speaking; flush emits the remainder', async () => {
   const p = [], f = [];
   const s = new SpeechSegmenter({ onPartial: x => p.push(x), onFinal: x => f.push(x) });
   await s.push(cat(noise(200), tone(3500)));
@@ -54,7 +54,7 @@ test('segmenter: 说话期间产生 partial；flush 吐出剩余', async () => {
   assert.equal(f.filter(x => x.audio).length, 1);
 });
 
-test('resampler: 48k/44.1k → 16k 长度正确且跨块连续', () => {
+test('resampler: 48k/44.1k -> 16k with correct length and continuity across chunks', () => {
   const r = new Resampler(48000); let n = 0;
   for (let i = 0; i < 10; i++) n += r.process(new Float32Array(480)).length;
   assert.ok(Math.abs(n - 1600) <= 1);
@@ -63,7 +63,7 @@ test('resampler: 48k/44.1k → 16k 长度正确且跨块连续', () => {
   assert.ok(Math.abs(m - 16000) <= 2);
 });
 
-test('postprocess: Whisper 幻听只对 Whisper 生效；Parakeet 低置信度短句丢弃', () => {
+test('postprocess: Whisper hallucination filter applies to Whisper only; short low-confidence Parakeet lines are dropped', () => {
   assert.equal(cleanText('ご視聴ありがとうございました', { engine: 'whisper-small' }), '');
   assert.equal(cleanText('ご視聴ありがとうございました', { engine: 'parakeet-ja', conf: 0.98 }), 'ご視聴ありがとうございました');
   assert.equal(cleanText('あっ。', { conf: 0.47 }), '');           // popping out of music
@@ -76,7 +76,7 @@ test('postprocess: Whisper 幻听只对 Whisper 生效；Parakeet 低置信度�
   assert.equal(isHallucination('Thank you for watching!'), true);
 });
 
-test('postprocess: 句子完整性判断与口头禅', () => {
+test('postprocess: sentence completeness and fillers', () => {
   assert.equal(looksIncomplete('警戒するとともに。'), true);   // Parakeet adds '。' even at the end of a half-sentence
   assert.equal(looksIncomplete('およそ100億円と。'), true);
   assert.equal(looksIncomplete('呼びかけています。'), false);
@@ -85,7 +85,7 @@ test('postprocess: 句子完整性判断与口头禅', () => {
   assert.equal(stripFillers('えーと、あの、今日はですね'), '今日はですね');
 });
 
-test('speaker: 不同声纹分开、相近声纹合并、短句沿用', () => {
+test('speaker: different voiceprints split, similar ones merge, short utterances keep the previous speaker', () => {
   const rnd = (seed) => { let x = seed; return () => (x = (x * 16807) % 2147483647) / 2147483647 - 0.5; };
   const base = (seed) => { const r = rnd(seed); return Float32Array.from({ length: 192 }, r); };
   const jitter = (v, seed) => { const r = rnd(seed); return Float32Array.from(v, x => x + r() * 0.08); };
@@ -98,7 +98,7 @@ test('speaker: 不同声纹分开、相近声纹合并、短句沿用', () => {
   assert.equal(c.speakers.length, 2);
 });
 
-test('config: 场景预设、引擎选择、下载地址', () => {
+test('config: scenario presets, engine selection, download URLs', () => {
   const s = applyScene(DEFAULT_SETTINGS, 'meeting');
   assert.equal(s.splitTurns, true);
   assert.equal(s.silenceMs, SCENES.meeting.silenceMs);

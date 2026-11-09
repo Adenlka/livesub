@@ -1,0 +1,11 @@
+{
+  "name": {
+    "message": "LiveSub - Live Subtitles"
+  },
+  "description": {
+    "message": "Live subtitles and translation for videos, streams, online classes and meetings in any tab. Speech recognition runs on your device (Chinese, Japanese, English, Korean)."
+  },
+  "toggle": {
+    "message": "Start / stop subtitles for the current tab"
+  }
+}

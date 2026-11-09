@@ -78,13 +78,13 @@ public class Asr {
   // --- pass 1 ---
   private void fastLoop() {
     try {
-      out.status("loading", I18n.t("加载中英日韩识别模型…"));
+      out.status("loading", I18n.t("Loading zh/en/ja/ko model…"));
       svConf = new OfflineRecognizerConfig();
       svConf.modelConfig = Models.config(root, "sensevoice", Math.max(1, Math.min(2, cores - 1)));
       sv = new OfflineRecognizer(svConf);
       if (!light && !"auto".equals(sourceLang) && Models.refineFor(sourceLang) != null) want(sourceLang);
-      out.status("ready", I18n.t("识别就绪：") + label());
-    } catch (Throwable e) { out.status("error", I18n.t("识别出错：") + e.getMessage()); return; }
+      out.status("ready", I18n.t("Ready: ") + label());
+    } catch (Throwable e) { out.status("error", I18n.t("Recognition error: ") + e.getMessage()); return; }
     while (running) {
       Job j;
       synchronized (this) {
@@ -94,7 +94,7 @@ public class Asr {
         else { j = partial; partial = null; if (System.currentTimeMillis() < partialCooldownUntil) continue; }
       }
       try { if (j.fin) doFinal(j); else doPartial(j); }
-      catch (Throwable e) { out.status("warn", I18n.t("识别出错：") + e.getMessage()); }
+      catch (Throwable e) { out.status("warn", I18n.t("Recognition error: ") + e.getMessage()); }
     }
   }
 
@@ -208,19 +208,19 @@ public class Asr {
     // Multi-language mode: keep only one refine model loaded at a time to save memory
     if ("auto".equals(sourceLang)) synchronized (fine) { for (OfflineRecognizer r : fine.values()) r.release(); fine.clear(); }
     try {
-      out.status("loading", I18n.t("加载{m}…", "m", I18n.t(Models.ALL.get(id).name)));
+      out.status("loading", I18n.t("Loading {m}…", "m", I18n.t(Models.ALL.get(id).name)));
       OfflineRecognizerConfig c = new OfflineRecognizerConfig();
       c.modelConfig = Models.config(root, id, Math.max(1, Math.min(4, cores - 2)));
       OfflineRecognizer r = new OfflineRecognizer(c);
       synchronized (fine) { fine.put(lang, r); }
-      out.status("ready", I18n.t("识别就绪：") + label());
+      out.status("ready", I18n.t("Ready: ") + label());
     } catch (Throwable e) {
       failedAt.put(lang, System.currentTimeMillis());
-      out.status("warn", I18n.t("{m}加载失败，{l}改用 SenseVoice：", "m", I18n.t(Models.ALL.get(id).name), "l", I18n.t(langName(lang))) + e.getMessage());
+      out.status("warn", I18n.t("Could not load {m}; using SenseVoice for {l}: ", "m", I18n.t(Models.ALL.get(id).name), "l", I18n.t(langName(lang))) + e.getMessage());
     }
   }
 
   public static String langName(String l) {
-    if ("ja".equals(l)) return "日语"; if ("zh".equals(l)) return "中文"; if ("en".equals(l)) return "英语"; if ("ko".equals(l)) return "韩语"; return l;
+    if ("ja".equals(l)) return "Japanese"; if ("zh".equals(l)) return "Chinese"; if ("en".equals(l)) return "English"; if ("ko".equals(l)) return "Korean"; return l;
   }
 }
