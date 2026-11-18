@@ -106,7 +106,7 @@ function onScreen(b) {
   return vis ? b : null;
 }
 
-/** Preset positions: bottom / middle / top of the screen the overlay is on */
+/** Move the overlay to the bottom of its screen (used when it is off screen) */
 function placeOverlay(where) {
   if (!overlay) return;
   const b = overlay.getBounds(), wa = screen.getDisplayMatching(b).workArea;
@@ -141,11 +141,6 @@ function updateTray() {
     { label: t('Show control panel'), click: () => { control.show(); control.focus(); } },
     { label: t('Start / stop subtitles') + '   Ctrl+Alt+S', click: () => control.webContents.send('toggle') },
     { label: (overlayLocked ? t('Unlock subtitle position (draggable)') : t('Lock subtitle position')) + '   Ctrl+Alt+L', click: () => setLocked(!overlayLocked) },
-    { label: t('Subtitle position'), submenu: [
-      { label: t('Bottom'), click: () => placeOverlay('bottom') },
-      { label: t('Middle'), click: () => placeOverlay('middle') },
-      { label: t('Top'), click: () => placeOverlay('top') },
-    ] },
     { label: t('Show / hide subtitles') + '   Ctrl+Alt+H', click: toggleOverlay },
     { label: t('Open transcript folder'), click: () => shell.openPath(transcriptDir()) },
     { type: 'separator' },
@@ -194,15 +189,6 @@ ipcMain.on('overlay-settings', (_e, s) => { overlaySettings = s; overlay?.webCon
 ipcMain.on('overlay-clear', () => overlay?.webContents.send('overlay', { type: 'clear' }));
 ipcMain.on('overlay-lock', (_e, v) => setLocked(v));
 ipcMain.handle('overlay-locked', () => overlayLocked);
-ipcMain.on('overlay-place', (_e, where) => placeOverlay(where));
-// Dragging is done here rather than with CSS app-region, which does not work reliably on non-focusable transparent windows on Windows
-let dragFrom = null;
-ipcMain.on('overlay-drag', (_e, m) => {
-  if (!overlay || overlayLocked) return;
-  if (m.phase === 'start') { const b = overlay.getBounds(); dragFrom = { sx: m.x, sy: m.y, x: b.x, y: b.y }; }
-  else if (m.phase === 'move' && dragFrom) overlay.setPosition(Math.round(dragFrom.x + m.x - dragFrom.sx), Math.round(dragFrom.y + m.y - dragFrom.sy));
-  else if (m.phase === 'end') { dragFrom = null; writeState({ overlay: overlay.getBounds() }); }
-});
 
 // Translation requests go through the main process (no browser CORS limits)
 ipcMain.handle('net-fetch', async (_e, url, init = {}) => {

@@ -5,8 +5,8 @@ Speech recognition runs locally (no audio leaves your device). Japanese-first, w
 
 | Platform | What it captures | Status |
 |---|---|---|
-| Windows desktop (Electron) | System audio, microphone, or both; local video/audio files → SRT | v0.5.2 |
-| Chrome extension (MV3) | Audio of the current tab | v0.5.2 |
+| Windows desktop (Electron) | System audio, microphone, or both; local video/audio files → SRT | v0.5.3 |
+| Chrome extension (MV3) | Audio of the current tab | v0.5.3 |
 | Android (10+, arm64) | Audio played by other apps, or the microphone | v0.5.1, early |
 
 ## Features

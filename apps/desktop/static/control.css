@@ -15,7 +15,7 @@ button.primary{background:var(--accent);border:0;color:#fff;font-weight:600;padd
 button.primary.on{background:#3a3f4b}
 button:disabled{opacity:.5;cursor:default}
 .wide{width:100%;margin-top:8px}
-.row{display:flex;gap:6px}.row button,.row select{flex:1;font-size:12px;padding:6px 4px;min-width:0}
+.row{display:flex;gap:6px}.row button{flex:1;font-size:12px;padding:6px 4px}
 .tools{margin-bottom:6px}
 .status{color:var(--muted);font-size:12px;min-height:18px}.status.error{color:#ff8a8a}.status.ready{color:var(--ok)}.status.warn{color:#f4d27a}
 .progress{height:4px;background:var(--field);border-radius:2px;overflow:hidden;margin-top:5px}.progress i{display:block;height:100%;background:var(--accent);transition:width .3s}

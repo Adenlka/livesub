@@ -30,14 +30,3 @@ window.livesub.onOverlay((m) => {
   }
 });
 
-// Drag to move while unlocked (the main process moves the window; uses screen coordinates so it doesn't drift)
-let dragging = false;
-document.addEventListener('pointerdown', (e) => {
-  if (!document.body.classList.contains('unlocked') || e.button !== 0) return;
-  dragging = true; document.body.setPointerCapture(e.pointerId);
-  window.livesub.dragOverlay({ phase: 'start', x: e.screenX, y: e.screenY });
-});
-document.addEventListener('pointermove', (e) => { if (dragging) window.livesub.dragOverlay({ phase: 'move', x: e.screenX, y: e.screenY }); });
-const stop = () => { if (dragging) { dragging = false; window.livesub.dragOverlay({ phase: 'end' }); } };
-document.addEventListener('pointerup', stop);
-document.addEventListener('pointercancel', stop);

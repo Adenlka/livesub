@@ -290,7 +290,6 @@ $('fileInput').onchange = async () => {
 let locked = await api.getOverlayLocked();
 const renderLock = () => ($('lock').textContent = t(locked ? 'Unlock subtitle position' : 'Lock subtitle position'));
 $('lock').onclick = () => api.setOverlayLocked(!locked);
-$('place').onchange = (e) => { if (e.target.value) api.placeOverlay(e.target.value); e.target.value = ''; };
 api.onOverlayLock((v) => { locked = v; renderLock(); });
 renderLock();
 $('folder').onclick = () => api.openTranscripts();
