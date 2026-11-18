@@ -5,6 +5,7 @@ import { RESTART_KEYS } from './settings-form.js';
 
 import { speakerName } from './speaker.js';
 import { t } from './i18n.js';
+import { perfOf, effectiveEngine } from './config.js';
 import { looksIncomplete } from './postprocess.js';
 import { baseLang } from './lang-text.js';
 export { speakerName };
@@ -48,10 +49,10 @@ export class CaptionPipeline {
 
   start() {
     const s = this.settings;
-    this.vad.postMessage({ type: 'init', assetBase: this.o.assetBase, vad: s.vad, silenceMs: s.silenceMs, maxSegmentMs: s.maxSegmentMs, partialIntervalMs: this.realtime ? 600 : 1e12 });
+    this.vad.postMessage({ type: 'init', assetBase: this.o.assetBase, vad: s.vad, silenceMs: s.silenceMs, maxSegmentMs: s.maxSegmentMs, partialIntervalMs: this.realtime ? perfOf(s).partialMs : 1e12 });
     this.asr.postMessage({
       type: 'init', assetBase: this.o.assetBase, localModelBase: this.o.localModelBase, modelHost: s.modelHost,
-      engine: s.engine, customModel: s.customModel, device: s.device, sourceLang: s.sourceLang,
+      engine: effectiveEngine(s), perf: s.perf, customModel: s.customModel, device: s.device, sourceLang: s.sourceLang,
       diarize: s.diarize, splitTurns: s.splitTurns, speakerThreshold: s.speakerThreshold, correctionsText: s.corrections, glossaryText: s.glossary, pageTitle: s.pageTitle ?? '', topic: s.topic ?? '', recheck: this.tm.translator.recheckOn, twoPass: this.realtime,
     });
   }

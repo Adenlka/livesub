@@ -1,7 +1,7 @@
 {
   "name": "livesub",
   "private": true,
-  "version": "0.4.3",
+  "version": "0.5.2",
   "description": "On-device live subtitles and translation for any audio (Windows desktop, Chrome extension, Android)",
   "type": "module",
   "workspaces": [

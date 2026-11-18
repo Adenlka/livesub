@@ -1,6 +1,6 @@
 // Recognition worker: Parakeet (ja/en) / Zipformer (zh/ko) / SenseVoice (per-sentence language ID + punctuation) / Whisper (other languages) + speaker embeddings + hotwords
 import * as ort from 'onnxruntime-web/webgpu';
-import { MODELS, WHISPER_MODELS, REFINE_MODEL, resolveEngine } from './config.js';
+import { MODELS, WHISPER_MODELS, REFINE_MODEL, resolveEngine, perfOf } from './config.js';
 import { getModelFile } from './model-store.js';
 import { ParakeetCtc } from './engines/parakeet.js';
 import { SenseVoice } from './engines/sensevoice.js';
@@ -88,9 +88,19 @@ function hotwords(text) {
 function setupOrt(m) {
   ort.env.wasm.wasmPaths = { mjs: m.assetBase + 'ort/ort-wasm-simd-threaded.asyncify.mjs', wasm: m.assetBase + 'ort/ort-wasm-simd-threaded.asyncify.wasm' };
   const hc = navigator.hardwareConcurrency || 2;
-  // Thread budget: with a refine worker, SenseVoice gets 2 threads and the refine model 4 (they run in parallel)
-  const want = m.role === 'refine' ? Math.min(4, hc - 2) : m.splitThreads ? Math.min(2, hc - 1) : Math.min(4, hc - 1);
-  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.max(1, want) : 1;
+  const perf = perfOf(m);
+  // Thread budget. fast: with a refine worker, SenseVoice gets 2 threads and the refine model 4 (they run in parallel).
+  // quiet/saver: fixed small counts; on a 4-core laptop extra threads mostly add overhead and fan noise, not speed.
+  const want = perf.threads ? perf.threads[m.role === 'refine' ? 1 : 0]
+    : m.role === 'refine' ? Math.min(4, hc - 2) : m.splitThreads ? Math.min(2, hc - 1) : Math.min(4, hc - 1);
+  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.max(1, Math.min(want, hc)) : 1;
+  // By default ONNX Runtime's idle worker threads busy-wait (spin) for new work, burning CPU between sentences.
+  // Turning that off costs nothing measurable in latency here; the CPU arena off returns memory after each run.
+  if (!perf.spin || !perf.arena) {
+    const create = ort.InferenceSession.create.bind(ort.InferenceSession);
+    const extra = perf.spin ? {} : { extra: { session: { intra_op: { allow_spinning: '0' }, inter_op: { allow_spinning: '0' } } } };
+    ort.InferenceSession.create = (model, o = {}) => create(model, { ...o, ...(perf.arena ? {} : { enableCpuMemArena: false }), ...extra });
+  }
 }
 
 const modelName = (id) => ({ 'parakeet-ja': t('Parakeet Japanese'), 'parakeet-en': t('Parakeet English'), 'zipformer-zh': t('Zipformer Chinese'), 'zipformer-ko': t('Zipformer Korean'), sensevoice: 'SenseVoice' })[id] ?? id;

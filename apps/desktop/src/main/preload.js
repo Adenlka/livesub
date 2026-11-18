@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('livesub', {
   clearOverlay: () => ipcRenderer.send('overlay-clear'),
   setOverlayLocked: (v) => ipcRenderer.send('overlay-lock', v),
   getOverlayLocked: () => ipcRenderer.invoke('overlay-locked'),
+  placeOverlay: (where) => ipcRenderer.send('overlay-place', where),
+  dragOverlay: (m) => ipcRenderer.send('overlay-drag', m),
   fetch: (url, init) => ipcRenderer.invoke('net-fetch', url, init),
   saveFile: (name, content) => ipcRenderer.invoke('save-file', name, content),
   ensureModels: (specs) => ipcRenderer.invoke('models-ensure', specs),

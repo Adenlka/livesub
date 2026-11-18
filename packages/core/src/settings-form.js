@@ -28,7 +28,7 @@ const opt = (v, t) => `<option value="${v}">${t}</option>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /** Settings that only take effect after restarting subtitles */
-export const RESTART_KEYS = new Set(['engine', 'customModel', 'device', 'diarize', 'sourceLang', 'modelHost', 'vad']);
+export const RESTART_KEYS = new Set(['perf', 'engine', 'customModel', 'device', 'diarize', 'sourceLang', 'modelHost', 'vad']);
 
 export function renderSettingsForm(container, settings, onChange) {
   container.classList.add('lsf');
@@ -39,6 +39,7 @@ export function renderSettingsForm(container, settings, onChange) {
   </fieldset>
   <fieldset><legend>Language</legend>
     <label><span>Spoken language</span><select name="sourceLang">${SOURCE_LANGS.map(l => opt(l.code, l.name)).join('')}</select></label>
+    <label><span>Performance</span><select name="perf">${opt('quiet', 'Quiet (recommended: low CPU, quiet fan)')}${opt('saver', 'Power saver (lowest CPU/memory, less accurate)')}${opt('fast', 'Fast (quickest subtitles, high CPU)')}</select></label>
     <label><span>Translation</span><select name="translate">${opt('true', 'On')}${opt('false', 'Off')}</select></label>
     <label data-show="translate=true"><span>Translate to</span><select name="targetLang">${TARGET_LANGS.map(l => opt(l.code, l.name)).join('')}</select></label>
     <label data-show="translate=true"><span id="revLabel">Two-way</span><select name="reverseLang">${opt('', 'Don\'t translate')}${TARGET_LANGS.map(l => opt(l.code, l.name)).join('')}</select></label>

@@ -5,8 +5,8 @@ Speech recognition runs locally (no audio leaves your device). Japanese-first, w
 
 | Platform | What it captures | Status |
 |---|---|---|
-| Windows desktop (Electron) | System audio, microphone, or both; local video/audio files → SRT | v0.4.3 |
-| Chrome extension (MV3) | Audio of the current tab | v0.4.3 |
+| Windows desktop (Electron) | System audio, microphone, or both; local video/audio files → SRT | v0.5.2 |
+| Chrome extension (MV3) | Audio of the current tab | v0.5.2 |
 | Android (10+, arm64) | Audio played by other apps, or the microphone | v0.5.1, early |
 
 ## Features
@@ -14,6 +14,7 @@ Speech recognition runs locally (no audio leaves your device). Japanese-first, w
 - **Two-pass recognition, low latency.** A fast multilingual model (SenseVoice) shows text about 0.5 s after someone starts speaking. A language-specific model then re-recognizes the sentence in a parallel worker and replaces the text in place. If the CPU falls behind, the oldest sentence keeps its fast result, so subtitles never drift further behind.
 - **Automatic language detection per sentence** (zh / ja / en / ko). Short interjections are re-decoded in the language that has dominated recently, so 「なんだ？」 doesn't turn into English.
 - **Readable subtitles.** One fixed-size box with adjustable width, font size and line count. Half-sentences are joined with their continuation, and a translation stays on screen long enough to be read.
+- **Performance modes.** Quiet (default: low CPU, quiet fan on laptops, subtitles within ~2–3 s), Power saver (SenseVoice only, lowest CPU and memory) or Fast (quickest subtitles, highest CPU).
 - **Fully offline by default.** No network calls and no API usage. Translation is opt-in: Google's free endpoint, or any OpenAI-compatible LLM (DeepSeek, OpenAI, Gemini, local Ollama).
 - **LLM extras (opt-in).** Context-aware proofreading of recognition errors, glossary/hotwords, a cloud re-check of low-confidence sentences, and an AI summary of the transcript.
 - **No manual setup.** Models download automatically in the background. Per-language models are fetched only the first time that language is heard.

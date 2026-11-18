@@ -1,4 +1,7 @@
 import { CaptionView, CAPTION_CSS, viewOptions } from '../../../../packages/core/src/caption-view.js';
+import { t, translateDOM } from '../../../../packages/core/src/i18n.js';
+
+translateDOM(document.body);
 
 document.getElementById('cap').textContent = CAPTION_CSS;
 const view = new CaptionView(document.getElementById('root'), { maxLines: 2 });
@@ -21,8 +24,20 @@ window.livesub.onOverlay((m) => {
     case 'clear': view.clear(); view.setStatus(''); break;
     case 'lock':
       document.body.classList.toggle('unlocked', !m.locked);
-      if (!m.locked && !view.items.size) view.setStatus('Subtitles appear here');
+      if (!m.locked && !view.items.size) view.setStatus(t('Subtitles appear here'));
       else if (m.locked) view.setStatus('');
       break;
   }
 });
+
+// Drag to move while unlocked (the main process moves the window; uses screen coordinates so it doesn't drift)
+let dragging = false;
+document.addEventListener('pointerdown', (e) => {
+  if (!document.body.classList.contains('unlocked') || e.button !== 0) return;
+  dragging = true; document.body.setPointerCapture(e.pointerId);
+  window.livesub.dragOverlay({ phase: 'start', x: e.screenX, y: e.screenY });
+});
+document.addEventListener('pointermove', (e) => { if (dragging) window.livesub.dragOverlay({ phase: 'move', x: e.screenX, y: e.screenY }); });
+const stop = () => { if (dragging) { dragging = false; window.livesub.dragOverlay({ phase: 'end' }); } };
+document.addEventListener('pointerup', stop);
+document.addEventListener('pointercancel', stop);

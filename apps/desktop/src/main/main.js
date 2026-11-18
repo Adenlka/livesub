@@ -77,7 +77,7 @@ function notifyTray() {
 
 function createOverlay() {
   const wa = screen.getPrimaryDisplay().workArea;
-  const saved = readState().overlay;
+  const saved = onScreen(readState().overlay);
   const w = Math.round(wa.width * 0.8), h = 240;
   overlay = new BrowserWindow({
     x: saved?.x ?? wa.x + Math.round((wa.width - w) / 2), y: saved?.y ?? wa.y + wa.height - h - 40,
@@ -90,14 +90,43 @@ function createOverlay() {
   overlay.setVisibleOnAllWorkspaces(true);
   overlay.loadURL('app://local/overlay.html');
   overlay.once('ready-to-show', () => { overlay.showInactive(); setLocked(true); });
-  overlay.webContents.on('did-finish-load', () => { if (overlaySettings) overlay.webContents.send('overlay', { type: 'settings', settings: overlaySettings }); });
+  overlay.webContents.on('did-finish-load', () => {
+    if (overlaySettings) overlay.webContents.send('overlay', { type: 'settings', settings: overlaySettings });
+    overlay.webContents.send('overlay', { type: 'lock', locked: overlayLocked });
+  });
   const save = () => writeState({ overlay: overlay.getBounds() });
   overlay.on('moved', save); overlay.on('resized', save);
+}
+
+/** Saved bounds are only reused when they are still visible on a connected display (monitor unplugged, resolution changed, other PC) */
+function onScreen(b) {
+  if (!b) return null;
+  const wa = screen.getDisplayMatching(b).workArea;
+  const vis = Math.min(b.x + b.width, wa.x + wa.width) - Math.max(b.x, wa.x) > 100 && Math.min(b.y + b.height, wa.y + wa.height) - Math.max(b.y, wa.y) > 60;
+  return vis ? b : null;
+}
+
+/** Preset positions: bottom / middle / top of the screen the overlay is on */
+function placeOverlay(where) {
+  if (!overlay) return;
+  const b = overlay.getBounds(), wa = screen.getDisplayMatching(b).workArea;
+  const w = Math.min(b.width, wa.width), h = Math.min(b.height, wa.height);
+  const x = wa.x + Math.round((wa.width - w) / 2);
+  const y = where === 'top' ? wa.y + 20 : where === 'middle' ? wa.y + Math.round((wa.height - h) / 2) : wa.y + wa.height - h - 40;
+  overlay.setBounds({ x, y, width: w, height: h });
+  if (!overlay.isVisible()) overlay.showInactive();
+  writeState({ overlay: overlay.getBounds() });
 }
 
 function setLocked(v) {
   overlayLocked = v;
   if (!overlay) return;
+  if (!v) {
+    // Unlocking must always show something to drag: un-hide the overlay and pull it back on screen if needed
+    if (!onScreen(overlay.getBounds())) placeOverlay('bottom');
+    if (!overlay.isVisible()) overlay.showInactive();
+    overlay.moveTop();
+  }
   overlay.setIgnoreMouseEvents(v, { forward: true });
   overlay.setFocusable(!v);
   overlay.webContents.send('overlay', { type: 'lock', locked: v });
@@ -112,6 +141,11 @@ function updateTray() {
     { label: t('Show control panel'), click: () => { control.show(); control.focus(); } },
     { label: t('Start / stop subtitles') + '   Ctrl+Alt+S', click: () => control.webContents.send('toggle') },
     { label: (overlayLocked ? t('Unlock subtitle position (draggable)') : t('Lock subtitle position')) + '   Ctrl+Alt+L', click: () => setLocked(!overlayLocked) },
+    { label: t('Subtitle position'), submenu: [
+      { label: t('Bottom'), click: () => placeOverlay('bottom') },
+      { label: t('Middle'), click: () => placeOverlay('middle') },
+      { label: t('Top'), click: () => placeOverlay('top') },
+    ] },
     { label: t('Show / hide subtitles') + '   Ctrl+Alt+H', click: toggleOverlay },
     { label: t('Open transcript folder'), click: () => shell.openPath(transcriptDir()) },
     { type: 'separator' },
@@ -140,10 +174,13 @@ app.whenReady().then(() => {
   tray.setToolTip(t('LiveSub live subtitles'));
   tray.on('click', () => { control.show(); control.focus(); });
   updateTray();
-  const reg = (acc, fn) => { try { if (!globalShortcut.register(acc, fn)) console.warn('shortcut already in use', acc); } catch {} };
+  // Another app may already own a shortcut: tell the user once instead of failing silently
+  const taken = [];
+  const reg = (acc, fn) => { let ok = false; try { ok = globalShortcut.register(acc, fn); } catch {} if (!ok) taken.push(acc.replace('Control', 'Ctrl')); };
   reg('Control+Alt+S', () => control.webContents.send('toggle'));
   reg('Control+Alt+L', () => setLocked(!overlayLocked));
   reg('Control+Alt+H', toggleOverlay);
+  if (taken.length) setTimeout(() => tray?.displayBalloon?.({ title: t('Shortcut unavailable'), content: t('{keys} is used by another app. Use the tray menu or the control panel instead.', { keys: taken.join(', ') }) }), 1500);
 });
 
 app.on('second-instance', () => { control?.show(); control?.focus(); });
@@ -157,6 +194,15 @@ ipcMain.on('overlay-settings', (_e, s) => { overlaySettings = s; overlay?.webCon
 ipcMain.on('overlay-clear', () => overlay?.webContents.send('overlay', { type: 'clear' }));
 ipcMain.on('overlay-lock', (_e, v) => setLocked(v));
 ipcMain.handle('overlay-locked', () => overlayLocked);
+ipcMain.on('overlay-place', (_e, where) => placeOverlay(where));
+// Dragging is done here rather than with CSS app-region, which does not work reliably on non-focusable transparent windows on Windows
+let dragFrom = null;
+ipcMain.on('overlay-drag', (_e, m) => {
+  if (!overlay || overlayLocked) return;
+  if (m.phase === 'start') { const b = overlay.getBounds(); dragFrom = { sx: m.x, sy: m.y, x: b.x, y: b.y }; }
+  else if (m.phase === 'move' && dragFrom) overlay.setPosition(Math.round(dragFrom.x + m.x - dragFrom.sx), Math.round(dragFrom.y + m.y - dragFrom.sy));
+  else if (m.phase === 'end') { dragFrom = null; writeState({ overlay: overlay.getBounds() }); }
+});
 
 // Translation requests go through the main process (no browser CORS limits)
 ipcMain.handle('net-fetch', async (_e, url, init = {}) => {

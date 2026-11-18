@@ -79,6 +79,22 @@ export const WHISPER_MODELS = {
   'whisper-base': { id: 'onnx-community/whisper-base', dtype: { webgpu: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, wasm: 'q8' } },
 };
 const SV_LANGS = new Set(['zh', 'en', 'ja', 'ko', 'auto']);
+/**
+ * Performance modes (CPU / memory vs. speed).
+ *   quiet: low CPU and memory, for laptops in class: no busy-waiting threads, few threads, slower live preview
+ *   saver: SenseVoice only (no second pass): least CPU and memory, somewhat lower accuracy
+ *   fast:  the previous behavior: more threads and frequent live preview, highest CPU use
+ * threads = [first pass (SenseVoice), refine worker]; null = scale with the CPU
+ */
+export const PERF = {
+  quiet: { partialMs: 1500, threads: [1, 2], spin: false, arena: false },
+  saver: { partialMs: 1500, threads: [1, 1], spin: false, arena: false, svOnly: true },
+  fast:  { partialMs: 600,  threads: null,   spin: true,  arena: true },
+};
+export const perfOf = (s) => PERF[s?.perf] ?? PERF.quiet;
+/** Engine actually used: the saver mode turns the automatic engine into SenseVoice only */
+export const effectiveEngine = (s) => (perfOf(s).svOnly && s.engine === 'auto' ? 'sensevoice' : s.engine);
+
 export const REFINE_MODEL = { ja: 'parakeet-ja', zh: 'zipformer-zh', en: 'parakeet-en', ko: 'zipformer-ko' };
 /**
  * @returns {{primary:string, refine:string[]}}
@@ -100,13 +116,13 @@ export function resolveEngine(engine, lang) {
 }
 /** Models required before starting: in auto (multi-language) mode the per-language refine models are fetched on demand when the language is heard */
 export function essentialModels(s) {
-  const { refine } = resolveEngine(s.engine, s.sourceLang);
+  const { refine } = resolveEngine(effectiveEngine(s), s.sourceLang);
   const lazy = refine.length > 1 ? refine.map(l => REFINE_MODEL[l]) : [];
   return requiredModels(s).filter(id => !lazy.includes(id));
 }
 /** Model files a settings combination needs (the desktop app pre-downloads these) */
 export function requiredModels(s) {
-  const { primary, refine } = resolveEngine(s.engine, s.sourceLang);
+  const { primary, refine } = resolveEngine(effectiveEngine(s), s.sourceLang);
   const ids = [];
   if (MODELS[primary]) ids.push(primary);
   for (const l of refine) if (!ids.includes(REFINE_MODEL[l])) ids.push(REFINE_MODEL[l]);
@@ -127,6 +143,7 @@ export const DEFAULT_SETTINGS = {
   scene: 'video',
   sourceLang: 'auto',     // auto-detect zh/ja/en/ko by default
   engine: 'auto',
+  perf: 'quiet',           // quiet | saver | fast (see PERF)
   customModel: '',
   device: 'auto',          // auto | webgpu | wasm (Whisper only)
   modelHost: 'hf',         // hf | mirror | custom URL
@@ -158,12 +175,13 @@ export const DEFAULT_SETTINGS = {
   autoSave: false,         // desktop: autosave the transcript to a file (off by default)
   keepTranscript: false,   // full transcript (off = keep only the latest 80 sentences, saves memory)
   ...SCENES.video,
-  settingsVer: 5,
+  settingsVer: 6,
 };
 
 /** Settings migration: since v0.4 speaker separation is Beta and off by default */
 export function migrateSettings(s) {
   if ((s.settingsVer ?? 0) < 5) { s.diarize = false; s.settingsVer = 5; }
+  if (s.settingsVer < 6) { s.perf = 'quiet'; s.settingsVer = 6; } // v0.5.2: quiet mode by default (much lower CPU)
   return s;
 }
 

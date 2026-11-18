@@ -2,6 +2,10 @@
 
 Version history of LiveSub. Git history contains a source snapshot for each version listed with a date; 0.2 and 0.3 were built and used, but their source trees were not kept.
 
+## 0.5.2 — 2026-11-18
+- New **Performance** setting (desktop and extension). The new default, **Quiet**, uses fixed small thread counts, no busy-waiting worker threads and a slower live preview: in testing on a simulated 4-core / 8-thread laptop it used about a third less CPU than before with the same accuracy, and subtitles still appear within about 2–3 s. **Power saver** uses SenseVoice only (under half the CPU of Quiet and about a quarter of the memory; somewhat less accurate). **Fast** keeps the previous behavior.
+- Desktop: dragging the subtitle box works on Windows (the window is moved by the app instead of CSS drag regions), unlocking always brings the box on screen, Top / Middle / Bottom position presets in the control panel and the tray menu, and a notice when a global shortcut is taken by another app.
+
 ## 0.5.1 — 2026-11-09
 - Android: fix translation failing with HTTP 429 (rate limiting): requests are paced and queued sentences merged, with automatic retry.
 - Public release: English codebase, PolyForm Noncommercial license, third-party notices.

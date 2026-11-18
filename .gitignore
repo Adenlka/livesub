@@ -11,3 +11,4 @@ release/
 *.apk
 *.zip
 .env
+test-e2e/
